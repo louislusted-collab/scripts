@@ -1556,6 +1556,21 @@ npcAIMsec:slider({name="Sensitivity",      flag="dvn_aim_sens",  min=0,  max=1, 
 npcAIMsec:slider({name="Mouse Sensitivity",flag="dvn_aim_sens2", min=0.1,max=5,   default=3.5,interval=0.1, callback=function(v) NpcAim.Sensitivity2=v end})
 
 -- ───────────────────────────────────────────
+--  TDS TAB
+-- ───────────────────────────────────────────
+local TDS    = window:tab({name = "TDS"})
+local tdscol = TDS:column()
+local tdssec = tdscol:section({name = "Scripts", toggle = false})
+
+tdssec:button_holder({})
+tdssec:button({name="Main Hub",callback=function()
+    local ok, err = pcall(function()
+        loadstring(game:HttpGet("https://raw.githubusercontent.com/DuxiiT/auto-strat/refs/heads/main/Library.lua"))()
+    end)
+    if not ok then warn("[Main Hub] Failed to load: " .. tostring(err)) end
+end})
+
+-- ───────────────────────────────────────────
 library:config_list_update()
 
 for index, value in themes.preset do
