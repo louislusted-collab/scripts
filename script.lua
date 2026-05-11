@@ -1,4 +1,4 @@
-local library, themes = loadstring(game:HttpGet("https://raw.githubusercontent.com/i77lhm/Libraries/refs/heads/main/Atlanta/Library.lua"))()
+local library, themes = loadstring(game:HttpGet("https://raw.githubusercontent.com/louislusted-collab/scripts/refs/heads/main/Library.lua"))()
 
 -- ───────────────────────────────────────────
 --  AIMBOT (embedded)
@@ -992,17 +992,26 @@ local mscripts = mcol:section({name = "Scripts", toggle = false})
 
 mscripts:button_holder({})
 mscripts:button({name="Infinite Yield",callback=function()
-    loadstring(game:HttpGet("https://raw.githubusercontent.com/EdgeIY/infiniteyield/master/source"))()
+    local ok, err = pcall(function()
+        loadstring(game:HttpGet("https://raw.githubusercontent.com/EdgeIY/infiniteyield/master/source"))()
+    end)
+    if not ok then warn("[Infinite Yield] Failed to load: " .. tostring(err)) end
 end})
 
 mscripts:button_holder({})
 mscripts:button({name="Tornado",callback=function()
-    loadstring(game:HttpGet("https://raw.githubusercontent.com/Lukashub-coder/Super-ring-V5/refs/heads/main/By%20lukas!!"))()
+    local ok, err = pcall(function()
+        loadstring(game:HttpGet("https://raw.githubusercontent.com/Lukashub-coder/Super-ring-V5/refs/heads/main/By%20lukas!!"))()
+    end)
+    if not ok then warn("[Tornado] Failed to load: " .. tostring(err)) end
 end})
 
 mscripts:button_holder({})
 mscripts:button({name="Unlock All Skins",callback=function()
-    loadstring(game:HttpGet("https://raw.githubusercontent.com/akucursed/RobloxScripts/refs/heads/main/CombatSurf_UnlockAll_Skins"))()
+    local ok, err = pcall(function()
+        loadstring(game:HttpGet("https://raw.githubusercontent.com/akucursed/RobloxScripts/refs/heads/main/CombatSurf_UnlockAll_Skins"))()
+    end)
+    if not ok then warn("[Unlock All Skins] Failed to load: " .. tostring(err)) end
 end})
 
 -- ── Aiming tab ────────────────────────────
