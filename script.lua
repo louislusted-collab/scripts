@@ -1517,7 +1517,7 @@ local function DisableNpcAimbot()
 end
 
 -- ── DvN UI ────────────────────────────────
-local DvN   = window:tab({name="Dummies vs Noobs"})
+local DvN   = window:tab({name="DvN"})
 local dvcol = DvN:column()
 local npcESPsec, npcAIMsec = dvcol:multi_section({names={"NPC ESP","NPC Aimbot"}})
 
