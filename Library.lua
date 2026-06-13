@@ -909,8 +909,13 @@
 				items.sgui.Enabled = not items.sgui.Enabled
 			end)
 			
+			library.tracked_panels = library.tracked_panels or {}
+			if items.main_holder then
+				insert(library.tracked_panels, items.main_holder)
+			end
+
 			return setmetatable(cfg, library)
-		end 
+		end
 
 		local sgui = library:create("ScreenGui", {
 			Enabled = true,
@@ -1806,6 +1811,41 @@
 					library.prioritize(text)
 				end})
 			--  
+
+			-- string lines between panels
+			do
+				local _lines = {}
+				local function _center(frame)
+					local p = frame.AbsolutePosition
+					local s = frame.AbsoluteSize
+					return vec2(p.X + s.X * 0.5, p.Y + s.Y * 0.5)
+				end
+				local function _rebuild()
+					for _, l in next, _lines do pcall(function() l:Remove() end) end
+					_lines = {}
+					local panels = library.tracked_panels or {}
+					local n = #panels
+					for i = 1, n do
+						for j = i + 1, n do
+							local l = Drawing.new("Line")
+							l.Color = rgb(180, 60, 60)
+							l.Thickness = 1
+							l.Transparency = 0.45
+							l.Visible = true
+							_lines[#_lines + 1] = {line = l, a = panels[i], b = panels[j]}
+						end
+					end
+				end
+				_rebuild()
+				library:connection(run.Heartbeat, function()
+					for _, entry in next, _lines do
+						pcall(function()
+							entry.line.From = _center(entry.a)
+							entry.line.To   = _center(entry.b)
+						end)
+					end
+				end)
+			end
 
 			return setmetatable(window, library)
 		end
