@@ -1830,7 +1830,7 @@
 							local l = Drawing.new("Line")
 							l.Color = themes.preset.accent
 							l.Thickness = 1
-							l.Transparency = 0.45
+							l.Transparency = 0.15
 							l.Visible = true
 							_lines[#_lines + 1] = {line = l, a = panels[i], b = panels[j]}
 						end
