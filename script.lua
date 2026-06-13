@@ -1,4 +1,4 @@
-local library, themes = loadstring(game:HttpGet("https://raw.githubusercontent.com/louislusted-collab/scripts/refs/heads/main/Library.lua"))()
+local library, themes = loadstring(game:HttpGet("https://raw.githubusercontent.com/louislusted-collab/scripts/refs/heads/main/Library.lua?v=" .. tostring(tick())))()
 
 -- ───────────────────────────────────────────
 --  AIMBOT (embedded)
