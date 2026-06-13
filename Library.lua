@@ -1828,7 +1828,7 @@
 					for i = 1, n do
 						for j = i + 1, n do
 							local l = Drawing.new("Line")
-							l.Color = rgb(180, 60, 60)
+							l.Color = themes.preset.accent
 							l.Thickness = 1
 							l.Transparency = 0.45
 							l.Visible = true
@@ -1838,10 +1838,12 @@
 				end
 				_rebuild()
 				library:connection(run.Heartbeat, function()
+					local accent = themes.preset.accent
 					for _, entry in next, _lines do
 						pcall(function()
-							entry.line.From = _center(entry.a)
-							entry.line.To   = _center(entry.b)
+							entry.line.Color = accent
+							entry.line.From  = _center(entry.a)
+							entry.line.To    = _center(entry.b)
 						end)
 					end
 				end)
