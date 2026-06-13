@@ -257,7 +257,7 @@ end
 local function HookPlayer(plr)
     if plr == Player then return end
     ChamsCons[plr] = plr.CharacterAdded:Connect(function(c)
-        task.wait(0.1)
+        task.wait(0.8)
         ApplyChams(c, plr)
     end)
     if plr.Character then ApplyChams(plr.Character, plr) end
@@ -332,7 +332,7 @@ end
 local function HookCatPlayer(plr)
     if plr == Player then return end
     CatChamsCons[plr] = plr.CharacterAdded:Connect(function(c)
-        task.wait(0.1)
+        task.wait(0.8)
         ApplyCatChams(c, plr)
     end)
     if plr.Character then ApplyCatChams(plr.Character, plr) end
@@ -1111,7 +1111,7 @@ local function refreshTargetList()
 end
 
 Players.PlayerAdded:Connect(function() task.wait(1) refreshTargetList() end)
-Players.PlayerRemoving:Connect(function() task.wait(0.1) refreshTargetList() end)
+Players.PlayerRemoving:Connect(function() task.wait(0.8) refreshTargetList() end)
 
 task.spawn(function()
     while true do
@@ -1137,7 +1137,7 @@ mcombat:toggle({name = "Kill All Loop", flag = "kill_all_loop", callback = funct
         task.spawn(function()
             while killAllLoop do
                 fireAttack(getAllTargets(), math.huge, math.huge, false)
-                task.wait(0.1)
+                task.wait(0.8)
             end
         end)
     end
@@ -1154,7 +1154,7 @@ mcombat:toggle({name = "Heal All Loop", flag = "heal_all_loop", callback = funct
         task.spawn(function()
             while healAllLoop do
                 fireAttack(getAllTargets(), -9999, 0, true)
-                task.wait(0.1)
+                task.wait(0.8)
             end
         end)
     end
@@ -1171,7 +1171,7 @@ mcombat:toggle({name = "Kill Selected Loop", flag = "kill_sel_loop", callback = 
         task.spawn(function()
             while killSelLoop do
                 fireAttack(getSelectedTarget(selectedTarget), math.huge, math.huge, false)
-                task.wait(0.1)
+                task.wait(0.8)
             end
         end)
     end
@@ -1188,7 +1188,7 @@ mcombat:toggle({name = "Heal Selected Loop", flag = "heal_sel_loop", callback = 
         task.spawn(function()
             while healSelLoop do
                 fireAttack(getSelectedTarget(selectedTarget), -9999, 0, true)
-                task.wait(0.1)
+                task.wait(0.8)
             end
         end)
     end
@@ -1403,7 +1403,7 @@ local function StartNpcCache()
             if desc:IsA("Model") and NPC_SET[desc.Name] then
                 cachedNpcs[desc] = true
                 if NpcEsp.ChamsEnabled then
-                    task.wait(0.1)
+                    task.wait(0.8)
                     ApplyNpcChams(desc)
                 end
             end
