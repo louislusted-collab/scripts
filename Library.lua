@@ -1524,10 +1524,35 @@
 			--  
 
 			-- main window
+				local _vx = camera.ViewportSize.X
+				local _vy = camera.ViewportSize.Y
+				local _scale = _vy / 1440  -- 1.0 at 1440p, 0.75 at 1080p, 0.5 at 720p
+				local _gap_h = math.floor(_vx * 0.04)   -- ~100px at 2560
+				local _gap_v = math.floor(_vy * 0.07)   -- ~100px at 1440
+
+				-- known main window dims
+				local _mw, _mh = 604, 628
+				local _mx = math.floor(_vx / 2 - 302 - 96)
+				local _my = math.floor(_vy / 2 - 421 - 12)
+
+				-- panel widths for position math
+				local _sw = 394  -- style
+				local _cw = 324  -- configurations
+				local _plw = 529 -- playerlist
+
+				-- derived positions (all kept on screen)
+				local _sx  = math.min(_mx + _mw + _gap_h, _vx - _sw - 10)
+				local _sy  = math.max(10, _my)
+				local _cx  = math.min(_sx + _sw + _gap_h, _vx - _cw - 10)
+				local _cy  = _sy
+				local _epy = _sy + 464 + _gap_v  -- esp preview below style (464 = style height)
+				local _plx = math.max(10, _mx - _plw - _gap_h)
+				local _ply = _sy
+
 				local main_window = library:panel({
-					name = properties and properties.name or "Atlanta | ", 
-					size = dim2(0, 604, 0, 628),
-					position = dim2(0, (camera.ViewportSize.X / 2) - 302 - 96, 0, (camera.ViewportSize.Y / 2) - 421 - 12),
+					name = properties and properties.name or "Atlanta | ",
+					size = dim2(0, _mw, 0, _mh),
+					position = dim2(0, _mx, 0, _my),
 					image = "rbxassetid://98823308062942",
 				})
 
@@ -1623,10 +1648,10 @@
 
 			-- theming 
 				local style = library:panel({
-					name = "Style", 
+					name = "Style",
 					anchor_point = vec2(0, 0),
 					size = dim2(0, 394, 0, 464),
-					position = dim2(0, main_window.items.main_holder.AbsolutePosition.X + main_window.items.main_holder.AbsoluteSize.X + 250, 0, main_window.items.main_holder.AbsolutePosition.Y),
+					position = dim2(0, _sx, 0, _sy),
 					image = "rbxassetid://115194686863276",
 				})
 
@@ -1741,7 +1766,7 @@
 				local holder = library:panel({
 					name = "Configurations", 
 					size = dim2(0, 324, 0, 410),
-					position = dim2(0, items.main_holder.AbsolutePosition.X + items.main_holder.AbsoluteSize.X + 250, 0, items.main_holder.AbsolutePosition.Y),
+					position = dim2(0, _cx, 0, _cy),
 					image = "rbxassetid://105199726008012",
 				}) 
 
@@ -1806,7 +1831,7 @@
 					name = "ESP Preview", 
 					anchor_point = vec2(0, 0),
 					size = dim2(0, 300, 0, 325),
-					position = dim2(0, style.items.main_holder.AbsolutePosition.X, 0, style.items.main_holder.AbsolutePosition.Y + style.items.main_holder.AbsoluteSize.Y + 200),
+					position = dim2(0, _sx, 0, _epy),
 					image = "rbxassetid://77684377836328",
 				})  
 				
@@ -1821,7 +1846,7 @@
 					name = "Playerlist", 
 					anchor_point = vec2(0, 0),
 					size = dim2(0, 529, 0, 445),
-					position = dim2(0, main_window.items.main_holder.AbsolutePosition.X - 779, 0, main_window.items.main_holder.AbsolutePosition.Y),
+					position = dim2(0, _plx, 0, _ply),
 					image = "rbxassetid://107070078834415",
 				})  
 				
