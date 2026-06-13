@@ -1854,10 +1854,10 @@
 					end
 					for i = 0, SEGS-1 do
 						local l = Drawing.new("Line")
-						l.Color       = themes.preset.accent
-						l.Thickness   = _rope_thick
-						l.Transparency = 0
-						l.Visible     = true
+						l.Color        = themes.preset.accent
+						l.Thickness    = _rope_thick
+						l.Transparency = 1
+						l.Visible      = true
 						insert(library.drawings, l)
 						lines[i] = l
 					end
