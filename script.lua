@@ -29,7 +29,8 @@ do
     local GetMouseLocation = __index(UserInputService, "GetMouseLocation")
     local GetPlayers = __index(Players, "GetPlayers")
     local RequiredDistance, Typing, Running, ServiceConnections, Animation, OriginalSensitivity = 2000, false, false, {}
-    local Connect, Disconnect = __index(game, "DescendantAdded").Connect
+    local Connect = __index(game, "DescendantAdded").Connect
+    local Disconnect = function(conn) return conn:Disconnect() end
     if ExunysDeveloperAimbot and ExunysDeveloperAimbot.Exit then ExunysDeveloperAimbot:Exit() end
     getgenv().ExunysDeveloperAimbot = {
         DeveloperSettings = {UpdateMode = "RenderStepped", TeamCheckOption = "TeamColor", RainbowSpeed = 1},
