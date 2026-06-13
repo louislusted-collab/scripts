@@ -1218,9 +1218,10 @@
 			local opened = {}
 
 			-- rope config (modified by style sliders below)
-			local _rope_gravity = 400
-			local _rope_damping = 0.02
-			local _rope_thick   = 1
+			local _rope_gravity  = 400
+			local _rope_damping  = 0.02
+			local _rope_thick    = 1
+			local _set_rope_vis  = nil  -- filled in by rope block below
 			local dock_outline;
 			local blur = library:create( "BlurEffect" , {
 				Parent = lighting;
@@ -1252,6 +1253,8 @@
 				end
 
 				library:tween(blur, {Size = bool and (flags["Blur Size"] or 15) or 0})
+
+				if _set_rope_vis then _set_rope_vis(bool) end
 
 				dock_outline.Visible = bool;
 
@@ -1879,6 +1882,14 @@
 				end
 
 				_rebuild()
+
+				_set_rope_vis = function(vis)
+					for _, r in next, _ropes do
+						for i = 0, SEGS-1 do
+							r.lines[i].Visible = vis
+						end
+					end
+				end
 
 				local last_t = tick()
 				library:connection(run.Heartbeat, function()
