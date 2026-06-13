@@ -1770,8 +1770,12 @@
 							gui:Destroy() 
 						end 
 
-						for _, connection in library.connections do 
-							connection:Disconnect() 
+						for _, connection in library.connections do
+							connection:Disconnect()
+						end
+
+						for _, drawing in library.drawings do
+							pcall(function() drawing:Remove() end)
 						end
 
 						blur:Destroy()
@@ -1832,6 +1836,7 @@
 							l.Thickness = 1
 							l.Transparency = 0.15
 							l.Visible = true
+							insert(library.drawings, l)
 							_lines[#_lines + 1] = {line = l, a = panels[i], b = panels[j]}
 						end
 					end
