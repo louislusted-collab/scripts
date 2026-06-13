@@ -1220,7 +1220,7 @@
 			-- rope config (modified by style sliders below)
 			local _rope_gravity  = 400
 			local _rope_damping  = 0.02
-			local _rope_thick    = 1
+			local _rope_thick    = 2
 			local _set_rope_vis  = nil  -- filled in by rope block below
 			local dock_outline;
 			local blur = library:create( "BlurEffect" , {
@@ -1697,8 +1697,8 @@
 				rope_sec:slider({name = "Resistance", flag = "rope_resistance", min = 0, max = 0.15, default = 0.02, interval = 0.005, callback = function(v)
 					_rope_damping = v
 				end})
-				rope_sec:slider({name = "Thickness", flag = "rope_thickness", min = 1, max = 5, default = 1, interval = 1, callback = function(v)
-					_rope_thick = v
+				rope_sec:slider({name = "Thickness", flag = "rope_thickness", min = 1, max = 20, default = 2, interval = 1, callback = function(v)
+					_rope_thick = math.max(1, math.floor(v))
 				end})
 				local section = column:section({name = "Other"})
 				section:label({name = "UI Bind"})
