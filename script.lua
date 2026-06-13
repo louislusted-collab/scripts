@@ -1022,6 +1022,14 @@ mscripts:button({name="Unlock All Skins",callback=function()
     if not ok then warn("[Unlock All Skins] Failed to load: " .. tostring(err)) end
 end})
 
+mscripts:button_holder({})
+mscripts:button({name="God Mode NDS",callback=function()
+    local ok, err = pcall(function()
+        loadstring(game:HttpGet("https://rawscripts.net/raw/Natural-Disaster-Survival-NATURAL-DISASTER-GOD-MODE-200705"))()
+    end)
+    if not ok then warn("[God Mode NDS] Failed to load: " .. tostring(err)) end
+end})
+
 -- ── Misc: Combat ──────────────────────────
 local mcombat = mcol:section({name = "Combat", toggle = false})
 
