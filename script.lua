@@ -1087,13 +1087,37 @@ local targetDropdown = mcombat:dropdown({
     callback = function(v) selectedTarget = v end
 })
 
-Players.PlayerAdded:Connect(function(p)
-    table.insert(playerNames, p.Name)
-    pcall(function() targetDropdown.add(p.Name) end)
-end)
-Players.PlayerRemoving:Connect(function(p)
-    if selectedTarget == p.Name then selectedTarget = "(none)" end
-    pcall(function() targetDropdown.remove(p.Name) end)
+local function refreshTargetList()
+    local current = {}
+    for _, p in pairs(Players:GetPlayers()) do
+        if p ~= Players.LocalPlayer then current[p.Name] = true end
+    end
+    -- add new
+    for name in pairs(current) do
+        if not table.find(playerNames, name) then
+            table.insert(playerNames, name)
+            pcall(function() targetDropdown.add(name) end)
+        end
+    end
+    -- remove gone
+    for i = #playerNames, 1, -1 do
+        local name = playerNames[i]
+        if name ~= "(none)" and not current[name] then
+            table.remove(playerNames, i)
+            if selectedTarget == name then selectedTarget = "(none)" end
+            pcall(function() targetDropdown.remove(name) end)
+        end
+    end
+end
+
+Players.PlayerAdded:Connect(function() task.wait(1) refreshTargetList() end)
+Players.PlayerRemoving:Connect(function() task.wait(0.1) refreshTargetList() end)
+
+task.spawn(function()
+    while true do
+        task.wait(5)
+        refreshTargetList()
+    end
 end)
 
 -- kill/heal loops
