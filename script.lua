@@ -1022,6 +1022,154 @@ mscripts:button({name="Unlock All Skins",callback=function()
     if not ok then warn("[Unlock All Skins] Failed to load: " .. tostring(err)) end
 end})
 
+-- ── Misc: Combat ──────────────────────────
+local mcombat = mcol:section({name = "Combat", toggle = false})
+
+-- helpers
+local function fireAttack(targets, dmg, kbForce, noKb)
+    local evt = Players.LocalPlayer.Character
+        and Players.LocalPlayer.Character:FindFirstChild("PlayerControllerScript")
+        and Players.LocalPlayer.Character.PlayerControllerScript:FindFirstChild("PlayerInputEvent")
+    if not evt then return end
+    local args = {
+        "basicAttack", true, {
+            attackCombo = 1,
+            attackType  = "basicAtk",
+            attackAnimLength = 0.25,
+            allHit = targets,
+            hitPropertiesTable = {
+                basicAtk = {
+                    hitstuns         = false,
+                    blockable        = false,
+                    parryable        = false,
+                    ultGain          = 0,
+                    hitsRagdolled    = true,
+                    ragdolls         = false,
+                    damage           = dmg,
+                    knockbackForce   = noKb and 0 or kbForce,
+                    hitboxSize       = vector.create(9999, 9999, 9999),
+                    axesForce        = noKb and {Y=0,X=0,Z=0} or {Y=1/0,X=1/0,Z=1/0},
+                    knockbackDirection = vector.one,
+                }
+            }
+        }
+    }
+    pcall(function() evt:FireServer(unpack(args)) end)
+end
+
+local function getAllTargets()
+    local t = {}
+    for _, p in pairs(Players:GetPlayers()) do
+        if p ~= Players.LocalPlayer and p.Character then
+            table.insert(t, p.Character)
+        end
+    end
+    return t
+end
+
+local function getSelectedTarget(name)
+    local p = Players:FindFirstChild(name)
+    return p and p.Character and {p.Character} or {}
+end
+
+-- player dropdown
+local playerNames = {"(none)"}
+local selectedTarget = "(none)"
+for _, p in pairs(Players:GetPlayers()) do
+    if p ~= Players.LocalPlayer then table.insert(playerNames, p.Name) end
+end
+
+local targetDropdown = mcombat:dropdown({
+    name    = "Target Player",
+    flag    = "combat_target",
+    items   = playerNames,
+    default = "(none)",
+    callback = function(v) selectedTarget = v end
+})
+
+Players.PlayerAdded:Connect(function(p)
+    table.insert(playerNames, p.Name)
+    pcall(function() targetDropdown.add(p.Name) end)
+end)
+Players.PlayerRemoving:Connect(function(p)
+    if selectedTarget == p.Name then selectedTarget = "(none)" end
+    pcall(function() targetDropdown.remove(p.Name) end)
+end)
+
+-- kill/heal loops
+local killAllLoop   = false
+local healAllLoop   = false
+local killSelLoop   = false
+local healSelLoop   = false
+
+-- Kill All
+mcombat:button_holder({})
+mcombat:button({name = "Kill All", callback = function()
+    fireAttack(getAllTargets(), math.huge, math.huge, false)
+end})
+mcombat:toggle({name = "Kill All Loop", flag = "kill_all_loop", callback = function(s)
+    killAllLoop = s
+    if s then
+        task.spawn(function()
+            while killAllLoop do
+                fireAttack(getAllTargets(), math.huge, math.huge, false)
+                task.wait(0.1)
+            end
+        end)
+    end
+end})
+
+-- Heal All
+mcombat:button_holder({})
+mcombat:button({name = "Heal All", callback = function()
+    fireAttack(getAllTargets(), -9999, 0, true)
+end})
+mcombat:toggle({name = "Heal All Loop", flag = "heal_all_loop", callback = function(s)
+    healAllLoop = s
+    if s then
+        task.spawn(function()
+            while healAllLoop do
+                fireAttack(getAllTargets(), -9999, 0, true)
+                task.wait(0.1)
+            end
+        end)
+    end
+end})
+
+-- Kill Selected
+mcombat:button_holder({})
+mcombat:button({name = "Kill Selected", callback = function()
+    fireAttack(getSelectedTarget(selectedTarget), math.huge, math.huge, false)
+end})
+mcombat:toggle({name = "Kill Selected Loop", flag = "kill_sel_loop", callback = function(s)
+    killSelLoop = s
+    if s then
+        task.spawn(function()
+            while killSelLoop do
+                fireAttack(getSelectedTarget(selectedTarget), math.huge, math.huge, false)
+                task.wait(0.1)
+            end
+        end)
+    end
+end})
+
+-- Heal Selected
+mcombat:button_holder({})
+mcombat:button({name = "Heal Selected", callback = function()
+    fireAttack(getSelectedTarget(selectedTarget), -9999, 0, true)
+end})
+mcombat:toggle({name = "Heal Selected Loop", flag = "heal_sel_loop", callback = function(s)
+    healSelLoop = s
+    if s then
+        task.spawn(function()
+            while healSelLoop do
+                fireAttack(getSelectedTarget(selectedTarget), -9999, 0, true)
+                task.wait(0.1)
+            end
+        end)
+    end
+end})
+
 -- ── Aiming tab ────────────────────────────
 local column = Aiming:column()
 local selec, lock, triggerbot = column:multi_section({names = {"Selection", "Lock", "Triggerbot"}})
