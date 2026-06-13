@@ -31,7 +31,12 @@ do
     local RequiredDistance, Typing, Running, ServiceConnections, Animation, OriginalSensitivity = 2000, false, false, {}
     local Connect = __index(game, "DescendantAdded").Connect
     local Disconnect = function(conn) return conn:Disconnect() end
-    if ExunysDeveloperAimbot and ExunysDeveloperAimbot.Exit then ExunysDeveloperAimbot:Exit() end
+    if ExunysDeveloperAimbot then
+        pcall(function() ExunysDeveloperAimbot:Exit() end)
+        pcall(function() ExunysDeveloperAimbot.FOVCircle:Remove() end)
+        pcall(function() ExunysDeveloperAimbot.FOVCircleOutline:Remove() end)
+        getgenv().ExunysDeveloperAimbot = nil
+    end
     getgenv().ExunysDeveloperAimbot = {
         DeveloperSettings = {UpdateMode = "RenderStepped", TeamCheckOption = "TeamColor", RainbowSpeed = 1},
         Settings = {
@@ -860,15 +865,17 @@ local function StartBox(plr)
             return
         end
         local c = plr.Character
-        if not (c and c:FindFirstChild("Humanoid") and c:FindFirstChild("HumanoidRootPart") and c.Humanoid.Health > 0) then
+        local _hum = c and c:FindFirstChild("Humanoid")
+        local _hrp = c and c:FindFirstChild("HumanoidRootPart")
+        if not (c and _hum and _hrp and _hum.Health > 0) then
             Vis(lines, false)
             hpOutline.Visible=false; hpBg.Visible=false; hpBar.Visible=false
             distText.Visible=false; nameText.Visible=false; weaponText.Visible=false
             if not Players:FindFirstChild(plr.Name) then RemoveBox(plr) end
             return
         end
-        local hrp    = c.HumanoidRootPart
-        local hum    = c.Humanoid
+        local hrp    = _hrp
+        local hum    = _hum
         local _, vis = Camera:WorldToViewportPoint(hrp.Position)
         if not vis then
             Vis(lines, false)
