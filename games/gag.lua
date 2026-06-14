@@ -5,6 +5,42 @@ return function(window, library)
     local VIM      = game:GetService("VirtualInputManager")
     local Player   = Players.LocalPlayer
 
+    -- ── Remote capture (hooks __namecall to record FireServer calls) ──
+    local captured    = {}  -- captured[key] = {remote, method, args}
+    local captureNext = nil -- set to a key string to capture 1 remote call
+    local hookActive  = false
+
+    pcall(function()
+        local mt = getrawmetatable(game)
+        local old = mt.__namecall
+        setreadonly(mt, false)
+        mt.__namecall = newcclosure(function(self, ...)
+            local m = getnamecallmethod()
+            if captureNext and (m == "FireServer" or m == "InvokeServer") then
+                local key = captureNext
+                captureNext = nil
+                captured[key] = {remote = self, method = m, args = {...}}
+                library:notification({text = "Captured: " .. key, time = 3})
+            end
+            return old(self, ...)
+        end)
+        setreadonly(mt, true)
+        hookActive = true
+    end)
+
+    local function fireCapture(key)
+        local c = captured[key]
+        if not c then return false end
+        pcall(function()
+            if c.method == "FireServer" then
+                c.remote:FireServer(table.unpack(c.args))
+            else
+                c.remote:InvokeServer(table.unpack(c.args))
+            end
+        end)
+        return true
+    end
+
     -- ── State ─────────────────────────────────
     local state = {
         AutoHarvest  = false,
@@ -13,11 +49,8 @@ return function(window, library)
         AutoShop     = false,
         AutoSteal    = false,
         AutoWater    = false,
-        PlantSeed    = "Carrot",
-        BuyAmount    = 1,
         HarvestDelay = 0.15,
     }
-
     local threads = {}
 
     -- ── Helpers ───────────────────────────────
@@ -27,22 +60,16 @@ return function(window, library)
     end
 
     local function getPos(obj)
-        if obj:IsA("Model") then
-            return obj.PrimaryPart and obj.PrimaryPart.Position
-        elseif obj:IsA("BasePart") then
-            return obj.Position
-        end
+        if obj:IsA("Model")    then return obj.PrimaryPart and obj.PrimaryPart.Position
+        elseif obj:IsA("BasePart") then return obj.Position end
     end
 
-    local function firePrompt(prompt)
-        if prompt and prompt.Parent then
-            pcall(function() fireproximityprompt(prompt) end)
-        end
+    local function firePrompt(p)
+        if p and p.Parent then pcall(function() fireproximityprompt(p) end) end
     end
 
-    -- fire a GUI button using every available method
     local function clickBtn(btn)
-        -- best: fire connections directly (executor getconnections API)
+        -- try getconnections first (most reliable in executors)
         local fired = false
         pcall(function()
             for _, sig in pairs({btn.MouseButton1Click, btn.Activated}) do
@@ -52,7 +79,6 @@ return function(window, library)
                 end
             end
         end)
-        -- fallback: VirtualInputManager at screen position
         if not fired then
             pcall(function()
                 local pos = btn.AbsolutePosition + btn.AbsoluteSize * 0.5
@@ -63,7 +89,6 @@ return function(window, library)
         end
     end
 
-    -- find a visible ScreenGui button whose Text, Name, or child labels contain any keyword
     local function findGuiButton(keywords)
         for _, obj in pairs(Player.PlayerGui:GetDescendants()) do
             if obj.Visible and (obj:IsA("TextButton") or obj:IsA("ImageButton")) then
@@ -71,15 +96,14 @@ return function(window, library)
                 for _, child in pairs(obj:GetChildren()) do
                     if child:IsA("TextLabel") then label = label .. " " .. child.Text end
                 end
-                local lower = label:lower()
+                local low = label:lower()
                 for _, kw in ipairs(keywords) do
-                    if lower:find(kw, 1, true) then return obj end
+                    if low:find(kw, 1, true) then return obj end
                 end
             end
         end
     end
 
-    -- ProximityPrompt scan
     local function getPrompts(keywords)
         local found = {}
         for _, obj in pairs(Space:GetDescendants()) do
@@ -88,25 +112,12 @@ return function(window, library)
                 local ot = obj.ObjectText:lower()
                 for _, kw in ipairs(keywords) do
                     if at:find(kw, 1, true) or ot:find(kw, 1, true) then
-                        table.insert(found, obj)
-                        break
+                        table.insert(found, obj); break
                     end
                 end
             end
         end
         return found
-    end
-
-    local function fireFirst(keywords)
-        local prompts = getPrompts(keywords)
-        if #prompts > 0 then
-            local p = prompts[1]
-            local pos = getPos(p.Parent)
-            if pos then tpTo(pos); task.wait(0.1) end
-            firePrompt(p)
-            return true
-        end
-        return false
     end
 
     local function fireAll(keywords, delay, checkFn)
@@ -119,39 +130,18 @@ return function(window, library)
         end
     end
 
-    -- ── Bag full check ────────────────────────
-    -- GAG2 bag is 100/100 fruits
+    -- ── Bag full (100/100 fruits) ──────────────
     local function isBagFull()
         for _, obj in pairs(Player.PlayerGui:GetDescendants()) do
             if obj:IsA("TextLabel") then
-                local t = obj.Text
-                local cur, max = t:match("(%d+)%s*/%s*(%d+)")
+                local cur, max = obj.Text:match("(%d+)%s*/%s*(%d+)")
                 if cur and max then
                     local c, m = tonumber(cur), tonumber(max)
                     if m and m > 0 and c >= m then return true end
                 end
-                if t:lower():find("bag full") or t:lower():find("inventory full") then
-                    return true
-                end
             end
         end
         return false
-    end
-
-    -- ── Loops ─────────────────────────────────
-    local function startLoop(key, interval, fn)
-        if threads[key] then task.cancel(threads[key]) end
-        threads[key] = task.spawn(function()
-            while state[key] do
-                pcall(fn)
-                task.wait(interval)
-            end
-        end)
-    end
-
-    local function stopLoop(key)
-        state[key] = false
-        if threads[key] then task.cancel(threads[key]); threads[key] = nil end
     end
 
     -- ── Actions ───────────────────────────────
@@ -159,28 +149,39 @@ return function(window, library)
 
     local function doHarvest()
         if isBagFull() then
-            -- auto sell when bag is full, then continue
-            local sellBtn = findGuiButton({"sell"})
-            if sellBtn then clickBtn(sellBtn); task.wait(1) end
+            -- sell first, then continue
+            if not fireCapture("sell") then
+                local btn = findGuiButton({"sell"})
+                if btn then clickBtn(btn); task.wait(1.5) end
+            end
         end
         fireAll(HARVEST_KW, state.HarvestDelay, function() return state.AutoHarvest end)
     end
 
-    -- Sell: try GUI button first (top bar "Sell" button), then prompt fallback
     local function doSell()
+        -- 1. Try captured remote (most reliable)
+        if fireCapture("sell") then return end
+        -- 2. Try GUI button
         local btn = findGuiButton({"sell"})
         if btn then clickBtn(btn); return end
-        fireFirst({"sell","vendor","market"})
+        -- 3. Try proximity prompt
+        local prompts = getPrompts({"sell","vendor","market","trade"})
+        if #prompts > 0 then
+            local p = prompts[1]
+            local pos = getPos(p.Parent)
+            if pos then tpTo(pos); task.wait(0.1) end
+            firePrompt(p)
+        end
     end
 
-    -- Plant: try GUI button first, then ProximityPrompt on soil/plot
-    local PLANT_KW = {"plant","sow","seed","insert","grow"}
+    local PLANT_KW = {"plant","sow","seed","insert","grow","place"}
 
     local function doPlant()
-        -- try clicking a "Seeds" or "Plant" GUI button
-        local btn = findGuiButton({"plant","sow"})
-        if btn then clickBtn(btn); task.wait(0.3); return end
-        fireAll(PLANT_KW, 0.3, function() return state.AutoPlant end)
+        if not fireCapture("plant") then
+            local btn = findGuiButton({"plant","sow"})
+            if btn then clickBtn(btn); task.wait(0.3); return end
+            fireAll(PLANT_KW, 0.3, function() return state.AutoPlant end)
+        end
     end
 
     local WATER_KW = {"water","sprinkle","irrigat"}
@@ -188,11 +189,11 @@ return function(window, library)
         fireAll(WATER_KW, 0.2, function() return state.AutoWater end)
     end
 
-    -- Shop: click the "Seeds" top bar button
     local function doShop()
-        local btn = findGuiButton({"seeds","seed shop","shop","buy"})
-        if btn then clickBtn(btn); return end
-        fireFirst({"buy","purchase","shop"})
+        if not fireCapture("shop") then
+            local btn = findGuiButton({"seeds","seed shop","shop","buy"})
+            if btn then clickBtn(btn) end
+        end
     end
 
     local function doSteal()
@@ -203,14 +204,12 @@ return function(window, library)
                     if not state.AutoSteal then break end
                     local isOthers = obj:GetAttribute("Owner") == plr.Name
                         or obj:GetAttribute("OwnerId") == plr.UserId
-                        or obj:GetAttribute("PlayerId") == plr.UserId
                     if isOthers then
-                        local prompt = obj:FindFirstChildWhichIsA("ProximityPrompt", true)
-                        if prompt then
+                        local p = obj:FindFirstChildWhichIsA("ProximityPrompt", true)
+                        if p then
                             local pos = getPos(obj)
                             if pos then tpTo(pos); task.wait(0.1) end
-                            firePrompt(prompt)
-                            task.wait(0.2)
+                            firePrompt(p); task.wait(0.2)
                         end
                     end
                 end
@@ -218,10 +217,22 @@ return function(window, library)
         end
     end
 
+    -- ── Loops ─────────────────────────────────
+    local function startLoop(key, interval, fn)
+        if threads[key] then task.cancel(threads[key]) end
+        threads[key] = task.spawn(function()
+            while state[key] do pcall(fn); task.wait(interval) end
+        end)
+    end
+    local function stopLoop(key)
+        state[key] = false
+        if threads[key] then task.cancel(threads[key]); threads[key] = nil end
+    end
+
     -- ── UI ────────────────────────────────────
     local GAG  = window:tab({name = "GAG 2"})
     local gcol = GAG:column()
-    local farm, shopSec, stealSec, dbg = gcol:multi_section({names = {"Farm", "Shop", "Steal", "Debug"}})
+    local farm, shopSec, stealSec, capSec = gcol:multi_section({names = {"Farm", "Shop", "Steal", "Capture"}})
 
     -- Farm
     farm:toggle({name = "Auto Harvest", flag = "gag_harvest", callback = function(s)
@@ -248,17 +259,11 @@ return function(window, library)
     end})
 
     -- Shop
-    local SEEDS = {
-        "Carrot","Strawberry","Blueberry","Tomato","Corn",
-        "Watermelon","Pumpkin","Sunflower","Rose","Bamboo",
-        "Cactus","Mushroom","Grape","Mango","Coconut",
-    }
+    local SEEDS = {"Carrot","Strawberry","Blueberry","Tomato","Corn","Watermelon","Pumpkin","Sunflower","Rose","Bamboo","Cactus","Mushroom","Grape","Mango","Coconut"}
     shopSec:dropdown({name = "Seed", flag = "gag_seed", items = SEEDS, default = "Carrot", callback = function(v)
         state.PlantSeed = v
     end})
-    shopSec:slider({name = "Buy Amount", flag = "gag_buyamt", min = 1, max = 99, default = 1, interval = 1, callback = function(v)
-        state.BuyAmount = v
-    end})
+    shopSec:slider({name = "Buy Amount", flag = "gag_buyamt", min = 1, max = 99, default = 1, interval = 1})
     shopSec:toggle({name = "Auto Shop", flag = "gag_shop", callback = function(s)
         state.AutoShop = s
         if s then startLoop("AutoShop", 5, doShop) else stopLoop("AutoShop") end
@@ -274,40 +279,53 @@ return function(window, library)
     stealSec:button_holder({})
     stealSec:button({name = "Steal Now", callback = function() task.spawn(pcall, doSteal) end})
 
-    -- Debug
-    dbg:button_holder({})
-    dbg:button({name = "Scan Prompts", callback = function()
+    -- Capture section: press button then do the action in-game to record its remote
+    local hookStatus = hookActive and "Hook: active" or "Hook: not supported"
+    capSec:label({name = hookStatus})
+    capSec:button_holder({})
+    capSec:button({name = "Capture Sell",  callback = function()
+        captureNext = "sell"
+        library:notification({text = "Click the Sell button in-game now", time = 4})
+    end})
+    capSec:button({name = "Capture Plant", callback = function()
+        captureNext = "plant"
+        library:notification({text = "Plant a seed in-game now", time = 4})
+    end})
+    capSec:button({name = "Capture Shop",  callback = function()
+        captureNext = "shop"
+        library:notification({text = "Buy something in-game now", time = 4})
+    end})
+    capSec:button_holder({})
+    capSec:button({name = "Clear Captures", callback = function()
+        captured = {}
+        captureNext = nil
+        library:notification({text = "Captures cleared", time = 2})
+    end})
+
+    -- Scan debug buttons
+    capSec:button_holder({})
+    capSec:button({name = "Scan Prompts", callback = function()
         local seen, count = {}, 0
         for _, obj in pairs(Space:GetDescendants()) do
             if obj:IsA("ProximityPrompt") then
-                local key = obj.ActionText.."|"..obj.ObjectText
-                if not seen[key] then
-                    seen[key] = true; count = count + 1
-                    print("[GAG] Prompt: Action='"..obj.ActionText.."' Object='"..obj.ObjectText.."' Parent="..obj.Parent.Name)
+                local k = obj.ActionText.."|"..obj.ObjectText
+                if not seen[k] then
+                    seen[k] = true; count = count + 1
+                    print("[GAG] Prompt Action='"..obj.ActionText.."' Object='"..obj.ObjectText.."' Parent="..obj.Parent.Name)
                 end
             end
         end
-        library:notification({text = count.." unique prompts - check F9", time = 5})
+        library:notification({text = count.." prompts - check F9", time = 4})
     end})
-    dbg:button({name = "Scan GUI Buttons", callback = function()
+    capSec:button({name = "Scan GUI Buttons", callback = function()
         local count = 0
         for _, obj in pairs(Player.PlayerGui:GetDescendants()) do
             if obj.Visible and (obj:IsA("TextButton") or obj:IsA("ImageButton")) then
                 count = count + 1
-                local txt = obj:IsA("TextButton") and obj.Text or "(ImageButton)"
-                print("[GAG] Button: '"..txt.."' Name='"..obj.Name.."' Path="..obj:GetFullName())
+                local txt = obj:IsA("TextButton") and obj.Text or "(img)"
+                print("[GAG] Button '"..txt.."' Name='"..obj.Name.."' "..obj:GetFullName())
             end
         end
-        library:notification({text = count.." buttons - check F9", time = 5})
-    end})
-    dbg:button({name = "Scan Remotes", callback = function()
-        local count = 0
-        for _, obj in pairs(RS:GetDescendants()) do
-            if obj:IsA("RemoteEvent") or obj:IsA("RemoteFunction") then
-                count = count + 1
-                print("[GAG] Remote ("..obj.ClassName.."): "..obj:GetFullName())
-            end
-        end
-        library:notification({text = count.." remotes - check F9", time = 5})
+        library:notification({text = count.." buttons - check F9", time = 4})
     end})
 end
