@@ -1329,6 +1329,31 @@ mperf:toggle({
     end
 })
 
+local maxActive  = false
+local maxApplied = false
+mperf:toggle({
+    name    = "MAX FPS Boost",
+    flag    = "perf_max",
+    default = false,
+    tooltip = "Stops 3D rendering entirely. Screen goes dark but all scripts/remotes/physics keep running. AFK farm mode.",
+    callback = function(s)
+        maxActive = s
+        if s then
+            maxApplied = true
+            pcall(function() game:GetService("RunService"):Set3dRenderingEnabled(false) end)
+            -- also kill quality/shadows for when 3D is re-enabled
+            pcall(function() settings().Rendering.QualityLevel = Enum.QualityLevel.Level01 end)
+            Lighting_svc.GlobalShadows = false
+        else
+            if not maxApplied then return end
+            maxApplied = false
+            pcall(function() game:GetService("RunService"):Set3dRenderingEnabled(true) end)
+            pcall(function() settings().Rendering.QualityLevel = Enum.QualityLevel.Automatic end)
+            Lighting_svc.GlobalShadows = true
+        end
+    end
+})
+
 -- ── Aiming tab ────────────────────────────
 local column = Aiming:column()
 local selec, lock, triggerbot = column:multi_section({names = {"Selection", "Lock", "Triggerbot"}})
