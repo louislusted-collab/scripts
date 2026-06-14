@@ -1301,7 +1301,6 @@ local mperf = mcol:section({name = "Performance", toggle = false})
 
 mperf:toggle({
     name    = "FPS Boost",
-    flag    = "perf_fps",
     tooltip = "Disables shadows, fog, post-effects and forces min quality",
     callback = function(s)
         fpsActive = s
@@ -1311,7 +1310,6 @@ mperf:toggle({
 
 mperf:toggle({
     name    = "ULTRA FPS Boost",
-    flag    = "perf_ultra",
     tooltip = "Removes all textures, decals, particles, atmosphere. Brutal but fast.",
     callback = function(s)
         ultraActive = s
@@ -1466,12 +1464,20 @@ do
         if ok and type(chunk) == "function" then
             local ok2, mod = pcall(chunk)
             if ok2 and type(mod) == "function" then
-                pcall(mod, window, library)
+                local ok3, err = pcall(mod, window, library)
+                if ok3 then
+                    library:notification({text = "Loaded: " .. file, time = 3})
+                else
+                    warn("[Atlanta] Game tab runtime error (" .. file .. "): " .. tostring(err))
+                    library:notification({text = "Tab error: " .. tostring(err):sub(1,60), time = 5})
+                end
             else
                 warn("[Atlanta] Game module error (" .. file .. "): " .. tostring(mod))
+                library:notification({text = "Module error: " .. file, time = 5})
             end
         else
             warn("[Atlanta] Game tab failed to load (" .. file .. "): " .. tostring(chunk))
+            library:notification({text = "Failed to fetch: " .. file, time = 5})
         end
     end
 end
