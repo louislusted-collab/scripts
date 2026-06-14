@@ -158,22 +158,22 @@ return function(window, library)
 
         -- Scan for other players' ripe crops and swipe them
         for _, plr in pairs(Players:GetPlayers()) do
-            if plr == Player then continue end
-            if not state.AutoSteal then break end
-            for _, obj in pairs(Space:GetDescendants()) do
+            if plr ~= Player then
                 if not state.AutoSteal then break end
-                local name = obj.Name:lower()
-                local ownerMatch = obj:GetAttribute("Owner") == plr.Name
-                    or obj:GetAttribute("OwnerId") == plr.UserId
-                    or obj:GetAttribute("PlayerId") == plr.UserId
-                if ownerMatch then
-                    local prompt = obj:FindFirstChildWhichIsA("ProximityPrompt", true)
-                    if prompt then
-                        local pos = obj:IsA("Model") and obj.PrimaryPart and obj.PrimaryPart.Position
-                            or (obj:IsA("BasePart") and obj.Position)
-                        if pos then tpTo(pos); task.wait(0.1) end
-                        pcall(function() fireproximityprompt(prompt) end)
-                        task.wait(0.15)
+                for _, obj in pairs(Space:GetDescendants()) do
+                    if not state.AutoSteal then break end
+                    local ownerMatch = obj:GetAttribute("Owner") == plr.Name
+                        or obj:GetAttribute("OwnerId") == plr.UserId
+                        or obj:GetAttribute("PlayerId") == plr.UserId
+                    if ownerMatch then
+                        local prompt = obj:FindFirstChildWhichIsA("ProximityPrompt", true)
+                        if prompt then
+                            local pos = obj:IsA("Model") and obj.PrimaryPart and obj.PrimaryPart.Position
+                                or (obj:IsA("BasePart") and obj.Position)
+                            if pos then tpTo(pos); task.wait(0.1) end
+                            pcall(function() fireproximityprompt(prompt) end)
+                            task.wait(0.15)
+                        end
                     end
                 end
             end

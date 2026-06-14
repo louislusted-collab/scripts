@@ -1200,10 +1200,13 @@ local Lighting_svc = game:GetService("Lighting")
 
 local fpsOriginals = { effects = {} }
 local ultraOriginals = { parts = {}, decals = {}, particles = {} }
-local fpsActive   = false
-local ultraActive = false
+local fpsActive    = false
+local ultraActive  = false
+local fpsApplied   = false
+local ultraApplied = false
 
 local function applyFPS()
+    fpsApplied = true
     fpsOriginals.QualityLevel   = pcall(function() return settings().Rendering.QualityLevel end) and settings().Rendering.QualityLevel or nil
     fpsOriginals.GlobalShadows  = Lighting_svc.GlobalShadows
     fpsOriginals.FogEnd         = Lighting_svc.FogEnd
@@ -1226,6 +1229,8 @@ local function applyFPS()
 end
 
 local function removeFPS()
+    if not fpsApplied then return end
+    fpsApplied = false
     pcall(function()
         if fpsOriginals.QualityLevel then
             settings().Rendering.QualityLevel = fpsOriginals.QualityLevel
@@ -1242,6 +1247,7 @@ local function removeFPS()
 end
 
 local function applyUltra()
+    ultraApplied = true
     ultraOriginals.parts     = {}
     ultraOriginals.decals    = {}
     ultraOriginals.particles = {}
@@ -1274,6 +1280,8 @@ local function applyUltra()
 end
 
 local function removeUltra()
+    if not ultraApplied then return end
+    ultraApplied = false
     for obj, data in pairs(ultraOriginals.parts) do
         if obj and obj.Parent then
             pcall(function()
@@ -1301,6 +1309,8 @@ local mperf = mcol:section({name = "Performance", toggle = false})
 
 mperf:toggle({
     name    = "FPS Boost",
+    flag    = "perf_fps",
+    default = false,
     tooltip = "Disables shadows, fog, post-effects and forces min quality",
     callback = function(s)
         fpsActive = s
@@ -1310,6 +1320,8 @@ mperf:toggle({
 
 mperf:toggle({
     name    = "ULTRA FPS Boost",
+    flag    = "perf_ultra",
+    default = false,
     tooltip = "Removes all textures, decals, particles, atmosphere. Brutal but fast.",
     callback = function(s)
         ultraActive = s
