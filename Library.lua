@@ -1903,19 +1903,15 @@
 
 				_rebuild()
 
-				local _rope_enabled = true
-				_set_rope_vis = function(vis)
-					_rope_enabled = vis
-					for _, r in next, _ropes do
-						for i = 0, SEGS-1 do r.segs[i].Visible = vis end
-					end
-				end
-
-				-- throttle: skip every other frame (~30fps physics)
+				local _rope_conn = nil
 				local _skip = false
 				local last_t = tick()
-				library:connection(run.Heartbeat, function()
-					if not _rope_enabled then return end
+
+				local function _start_physics()
+					if _rope_conn then return end
+					_skip = false
+					last_t = tick()
+					_rope_conn = run.Heartbeat:Connect(function()
 					_skip = not _skip
 					if _skip then return end
 
@@ -1969,6 +1965,30 @@
 						end
 					end
 				end)
+				end
+
+				local function _stop_physics()
+					if _rope_conn then _rope_conn:Disconnect(); _rope_conn = nil end
+				end
+
+				local function _destroy_ropes()
+					for _, r in next, _ropes do
+						for i = 0, SEGS-1 do pcall(function() r.segs[i]:Remove() end) end
+					end
+					_ropes = {}
+				end
+
+				_set_rope_vis = function(vis)
+					if vis then
+						_rebuild()
+						_start_physics()
+					else
+						_stop_physics()
+						_destroy_ropes()
+					end
+				end
+
+				_start_physics()
 			end
 
 			return setmetatable(window, library)
