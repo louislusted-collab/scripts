@@ -1217,10 +1217,10 @@
 			local window = {opened = true}
 			local opened = {}
 
-			-- rope config (modified by style sliders below)
-			local _rope_gravity  = 400
-			local _rope_damping  = 0.02
-			local _rope_thick    = 2
+			-- rope config (fixed – settings section removed)
+			local _rope_gravity  = 450
+			local _rope_damping  = 0.018
+			local _rope_thick    = 1.5
 			local _set_rope_vis  = nil  -- filled in by rope block below
 			local dock_outline;
 			local blur = library:create( "BlurEffect" , {
@@ -1715,16 +1715,6 @@
 					end
 				end})
 
-				local rope_sec = column:section({name = "String Lines"})
-				rope_sec:slider({name = "Gravity", flag = "rope_gravity", min = 0, max = 2000, default = 400, interval = 10, callback = function(v)
-					_rope_gravity = v
-				end})
-				rope_sec:slider({name = "Resistance", flag = "rope_resistance", min = 0, max = 0.15, default = 0.02, interval = 0.005, callback = function(v)
-					_rope_damping = v
-				end})
-				rope_sec:slider({name = "Thickness", flag = "rope_thickness", min = 1, max = 20, default = 2, interval = 1, callback = function(v)
-					_rope_thick = math.max(1, math.floor(v))
-				end})
 				local section = column:section({name = "Other"})
 				section:label({name = "UI Bind"})
 				:keybind({callback = window.set_menu_visibility, key = Enum.KeyCode.Insert})
@@ -1860,25 +1850,25 @@
 				end})
 			--  
 
-			-- rope physics string lines
+			-- rope physics string lines (6 segs, chain topology, 30fps throttle)
 			do
-				local SEGS  = 10
-				local ITERS = 3
+				local SEGS  = 6
+				local ITERS = 2
 
-				local function _cx(f) return f.AbsolutePosition.X + f.AbsoluteSize.X * 0.5 end
-				local function _cy(f) return f.AbsolutePosition.Y + f.AbsoluteSize.Y * 0.5 end
+				local function _panelCX(f) return f.AbsolutePosition.X + f.AbsoluteSize.X * 0.5 end
+				local function _panelCY(f) return f.AbsolutePosition.Y + f.AbsoluteSize.Y * 0.5 end
 
 				local _ropes = {}
 
 				local function _make_rope(fa, fb)
-					local ax, ay = _cx(fa), _cy(fa)
-					local bx, by = _cx(fb), _cy(fb)
-					local pts, lines = {}, {}
+					local ax, ay = _panelCX(fa), _panelCY(fa)
+					local bx, by = _panelCX(fb), _panelCY(fb)
+					local pts, segs = {}, {}
 					for i = 0, SEGS do
 						local t = i / SEGS
-						pts[i] = {x = ax+(bx-ax)*t, y = ay+(by-ay)*t,
-						          px= ax+(bx-ax)*t, py= ay+(by-ay)*t,
-						          fixed = (i==0 or i==SEGS)}
+						pts[i] = {x=ax+(bx-ax)*t, y=ay+(by-ay)*t,
+						          px=ax+(bx-ax)*t, py=ay+(by-ay)*t,
+						          fixed=(i==0 or i==SEGS)}
 					end
 					for i = 0, SEGS-1 do
 						local l = Drawing.new("Line")
@@ -1887,22 +1877,20 @@
 						l.Transparency = 1
 						l.Visible      = true
 						insert(library.drawings, l)
-						lines[i] = l
+						segs[i] = l
 					end
-					return {pts=pts, lines=lines, a=fa, b=fb}
+					return {pts=pts, segs=segs, a=fa, b=fb}
 				end
 
 				local function _rebuild()
 					for _, r in next, _ropes do
-						for i = 0, SEGS-1 do pcall(function() r.lines[i]:Remove() end) end
+						for i = 0, SEGS-1 do pcall(function() r.segs[i]:Remove() end) end
 					end
 					_ropes = {}
+					-- chain: 1→2→3→... (N-1 ropes, not all-pairs)
 					local panels = library.tracked_panels or {}
-					local n = #panels
-					for i = 1, n do
-						for j = i+1, n do
-							_ropes[#_ropes+1] = _make_rope(panels[i], panels[j])
-						end
+					for i = 1, #panels - 1 do
+						_ropes[#_ropes+1] = _make_rope(panels[i], panels[i+1])
 					end
 				end
 
@@ -1910,38 +1898,37 @@
 
 				_set_rope_vis = function(vis)
 					for _, r in next, _ropes do
-						for i = 0, SEGS-1 do
-							r.lines[i].Visible = vis
-						end
+						for i = 0, SEGS-1 do r.segs[i].Visible = vis end
 					end
 				end
 
+				-- throttle: skip every other frame (~30fps physics)
+				local _skip = false
 				local last_t = tick()
 				library:connection(run.Heartbeat, function()
+					_skip = not _skip
+					if _skip then return end
+
 					local now = tick()
 					local dt  = min(now - last_t, 0.05)
 					last_t    = now
 
-					local grav  = _rope_gravity
-					local damp  = 1 - _rope_damping
-					local thick = _rope_thick
+					local grav   = _rope_gravity
+					local damp   = 1 - _rope_damping
+					local thick  = _rope_thick
 					local accent = themes.preset.accent
+					local dt2    = grav * dt * dt
 
 					for _, r in next, _ropes do
 						local pts = r.pts
+						local ax, ay = _panelCX(r.a), _panelCY(r.a)
+						local bx, by = _panelCX(r.b), _panelCY(r.b)
+						pts[0].x=ax;     pts[0].y=ay;     pts[0].px=ax;     pts[0].py=ay
+						pts[SEGS].x=bx;  pts[SEGS].y=by;  pts[SEGS].px=bx;  pts[SEGS].py=by
 
-						-- anchor endpoints to window centers
-						local ax, ay = _cx(r.a), _cy(r.a)
-						local bx, by = _cx(r.b), _cy(r.b)
-						pts[0].x=ax; pts[0].y=ay; pts[0].px=ax; pts[0].py=ay
-						pts[SEGS].x=bx; pts[SEGS].y=by; pts[SEGS].px=bx; pts[SEGS].py=by
-
-						-- rest length from current anchor distance
-						local ddx = bx-ax; local ddy = by-ay
+						local ddx=bx-ax; local ddy=by-ay
 						local rest = sqrt(ddx*ddx+ddy*ddy) / SEGS
 
-						-- verlet integrate free points
-						local dt2 = grav * dt * dt
 						for i = 1, SEGS-1 do
 							local p = pts[i]
 							local vx = (p.x-p.px)*damp
@@ -1950,23 +1937,21 @@
 							p.x=p.x+vx; p.y=p.y+vy+dt2
 						end
 
-						-- distance constraints
 						for _ = 1, ITERS do
 							for i = 0, SEGS-1 do
-								local pa = pts[i]; local pb = pts[i+1]
-								local cx = pb.x-pa.x; local cy = pb.y-pa.y
-								local d = sqrt(cx*cx+cy*cy)
+								local pa=pts[i]; local pb=pts[i+1]
+								local cx=pb.x-pa.x; local cy=pb.y-pa.y
+								local d=sqrt(cx*cx+cy*cy)
 								if d < 0.001 then continue end
-								local diff = (d-rest)/d * 0.5
-								local ox = cx*diff; local oy = cy*diff
+								local diff=(d-rest)/d*0.5
+								local ox=cx*diff; local oy=cy*diff
 								if not pa.fixed then pa.x=pa.x+ox; pa.y=pa.y+oy end
 								if not pb.fixed then pb.x=pb.x-ox; pb.y=pb.y-oy end
 							end
 						end
 
-						-- update drawing
 						for i = 0, SEGS-1 do
-							local l = r.lines[i]
+							local l = r.segs[i]
 							l.Color     = accent
 							l.Thickness = thick
 							l.From      = vec2(pts[i].x,   pts[i].y)
