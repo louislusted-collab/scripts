@@ -1716,6 +1716,9 @@
 				end})
 
 				local rope_sec = column:section({name = "String Lines"})
+				rope_sec:toggle({name = "Enabled", flag = "rope_enabled", default = true, callback = function(v)
+					if _set_rope_vis then _set_rope_vis(v) end
+				end})
 				rope_sec:slider({name = "Gravity",    flag = "rope_gravity",    min = 0,   max = 2000, default = 450,   interval = 10,   callback = function(v) _rope_gravity = v end})
 				rope_sec:slider({name = "Resistance", flag = "rope_resistance", min = 0,   max = 0.15, default = 0.018, interval = 0.005, callback = function(v) _rope_damping = v end})
 				rope_sec:slider({name = "Thickness",  flag = "rope_thickness",  min = 1,   max = 20,   default = 2,     interval = 1,    callback = function(v) _rope_thick = math.max(1, math.floor(v)) end})
@@ -1900,7 +1903,9 @@
 
 				_rebuild()
 
+				local _rope_enabled = true
 				_set_rope_vis = function(vis)
+					_rope_enabled = vis
 					for _, r in next, _ropes do
 						for i = 0, SEGS-1 do r.segs[i].Visible = vis end
 					end
@@ -1910,6 +1915,7 @@
 				local _skip = false
 				local last_t = tick()
 				library:connection(run.Heartbeat, function()
+					if not _rope_enabled then return end
 					_skip = not _skip
 					if _skip then return end
 
