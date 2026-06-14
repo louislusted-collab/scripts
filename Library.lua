@@ -1715,6 +1715,10 @@
 					end
 				end})
 
+				local rope_sec = column:section({name = "String Lines"})
+				rope_sec:slider({name = "Gravity",    flag = "rope_gravity",    min = 0,   max = 2000, default = 450,   interval = 10,   callback = function(v) _rope_gravity = v end})
+				rope_sec:slider({name = "Resistance", flag = "rope_resistance", min = 0,   max = 0.15, default = 0.018, interval = 0.005, callback = function(v) _rope_damping = v end})
+				rope_sec:slider({name = "Thickness",  flag = "rope_thickness",  min = 1,   max = 20,   default = 2,     interval = 1,    callback = function(v) _rope_thick = math.max(1, math.floor(v)) end})
 				local section = column:section({name = "Other"})
 				section:label({name = "UI Bind"})
 				:keybind({callback = window.set_menu_visibility, key = Enum.KeyCode.Insert})
