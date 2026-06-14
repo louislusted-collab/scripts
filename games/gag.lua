@@ -27,15 +27,15 @@ return function(window, library)
     end
 
     -- Try to fire common remote event naming patterns
-    local function tryRemote(names, ...)
+    local function tryRemote(names, a1, a2)
         for _, name in ipairs(names) do
             local r = RS:FindFirstChild(name, true) or Space:FindFirstChild(name, true)
             if r then
                 if r:IsA("RemoteEvent") then
-                    pcall(function() r:FireServer(...) end)
+                    pcall(function() r:FireServer(a1, a2) end)
                     return true
                 elseif r:IsA("RemoteFunction") then
-                    pcall(function() r:InvokeServer(...) end)
+                    pcall(function() r:InvokeServer(a1, a2) end)
                     return true
                 end
             end

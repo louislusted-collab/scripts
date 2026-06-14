@@ -220,11 +220,10 @@ return function(window, library)
                     if activeNpcBoxes[model] then DestroyNpcBox(model) end
                     RemoveNpcChams(model)
                     cachedNpcs[model] = nil
-                    continue
-                end
+                else
                 local _, vis = Camera:WorldToViewportPoint(hrp.Position)
                 local d = GetOrMakeNpcBox(model)
-                if not vis then HideNpcBox(d); continue end
+                if vis then
                 local col     = NpcColor(model)
                 local camDist = (camPos - hrp.Position).Magnitude
                 local studs   = myHRP and math.floor((myHRP.Position - hrp.Position).Magnitude) or 0
@@ -271,6 +270,8 @@ return function(window, library)
                     d.distText.Text=studs.." studs"; d.distText.Color=Color3.new(1,1,1); d.distText.Size=fs
                     d.distText.Position=Vector2.new(cx,botY+gap); d.distText.Visible=true
                 else d.distText.Visible=false end
+                else HideNpcBox(d) end  -- if vis
+                end  -- else (not dead)
             end
         end)
     end
@@ -300,13 +301,15 @@ return function(window, library)
         for model in pairs(cachedNpcs) do
             local hrp=model:FindFirstChild(NpcAim.LockPart) or GetNpcRoot(model)
             local hum=model:FindFirstChildOfClass("Humanoid")
-            if not hrp or not hum or hum.Health<=0 then continue end
-            local sp,onScreen=Camera:WorldToViewportPoint(hrp.Position)
-            if not onScreen then continue end
-            local dist=(mouse-Vector2.new(sp.X,sp.Y)).Magnitude
-            local tier=(NpcAim.BossPriority and BOSS_SET[model.Name]) and 1 or 2
-            if tier<bestTier or (tier==bestTier and dist<bestDist) then
-                bestTier=tier; bestDist=dist; best=model
+            if hrp and hum and hum.Health>0 then
+                local sp,onScreen=Camera:WorldToViewportPoint(hrp.Position)
+                if onScreen then
+                    local dist=(mouse-Vector2.new(sp.X,sp.Y)).Magnitude
+                    local tier=(NpcAim.BossPriority and BOSS_SET[model.Name]) and 1 or 2
+                    if tier<bestTier or (tier==bestTier and dist<bestDist) then
+                        bestTier=tier; bestDist=dist; best=model
+                    end
+                end
             end
         end
         return best
