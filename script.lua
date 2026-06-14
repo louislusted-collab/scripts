@@ -1022,13 +1022,6 @@ mscripts:button({name="Unlock All Skins",callback=function()
     if not ok then warn("[Unlock All Skins] Failed to load: " .. tostring(err)) end
 end})
 
-mscripts:button_holder({})
-mscripts:button({name="God Mode NDS",callback=function()
-    local ok, err = pcall(function()
-        loadstring(game:HttpGet("https://rawscripts.net/raw/Natural-Disaster-Survival-NATURAL-DISASTER-GOD-MODE-200705"))()
-    end)
-    if not ok then warn("[God Mode NDS] Failed to load: " .. tostring(err)) end
-end})
 
 -- ── Misc: Combat ──────────────────────────
 local mcombat = mcol:section({name = "Combat", toggle = false})
@@ -1202,6 +1195,130 @@ mcombat:toggle({name = "Heal Selected Loop", flag = "heal_sel_loop", callback = 
     end
 end})
 
+-- ── Misc: Performance ────────────────────
+local Lighting_svc = game:GetService("Lighting")
+
+local fpsOriginals = { effects = {} }
+local ultraOriginals = { parts = {}, decals = {}, particles = {} }
+local fpsActive   = false
+local ultraActive = false
+
+local function applyFPS()
+    fpsOriginals.QualityLevel   = pcall(function() return settings().Rendering.QualityLevel end) and settings().Rendering.QualityLevel or nil
+    fpsOriginals.GlobalShadows  = Lighting_svc.GlobalShadows
+    fpsOriginals.FogEnd         = Lighting_svc.FogEnd
+    fpsOriginals.Brightness     = Lighting_svc.Brightness
+    fpsOriginals.ClockTime      = Lighting_svc.ClockTime
+    fpsOriginals.effects        = {}
+
+    pcall(function() settings().Rendering.QualityLevel = Enum.QualityLevel.Level01 end)
+    Lighting_svc.GlobalShadows  = false
+    Lighting_svc.FogEnd         = 9e9
+    Lighting_svc.Brightness     = 0
+    Lighting_svc.ClockTime      = 12
+
+    for _, fx in pairs(Lighting_svc:GetChildren()) do
+        if fx:IsA("PostEffect") or fx:IsA("Sky") then
+            fpsOriginals.effects[fx] = fx.Enabled
+            fx.Enabled = false
+        end
+    end
+end
+
+local function removeFPS()
+    pcall(function()
+        if fpsOriginals.QualityLevel then
+            settings().Rendering.QualityLevel = fpsOriginals.QualityLevel
+        end
+    end)
+    Lighting_svc.GlobalShadows = fpsOriginals.GlobalShadows
+    Lighting_svc.FogEnd        = fpsOriginals.FogEnd
+    Lighting_svc.Brightness    = fpsOriginals.Brightness
+    Lighting_svc.ClockTime     = fpsOriginals.ClockTime
+    for fx, wasEnabled in pairs(fpsOriginals.effects) do
+        if fx and fx.Parent then fx.Enabled = wasEnabled end
+    end
+    fpsOriginals.effects = {}
+end
+
+local function applyUltra()
+    ultraOriginals.parts     = {}
+    ultraOriginals.decals    = {}
+    ultraOriginals.particles = {}
+    for _, obj in pairs(workspace:GetDescendants()) do
+        if obj:IsA("BasePart") then
+            ultraOriginals.parts[obj] = { mat = obj.Material, shadow = obj.CastShadow }
+            pcall(function()
+                obj.Material   = Enum.Material.SmoothPlastic
+                obj.CastShadow = false
+            end)
+        elseif obj:IsA("Decal") or obj:IsA("Texture") then
+            local par = obj.Parent
+            if par then
+                table.insert(ultraOriginals.decals, { obj = obj, parent = par })
+                pcall(function() obj.Parent = nil end)
+            end
+        elseif obj:IsA("ParticleEmitter") or obj:IsA("Beam") or obj:IsA("Trail")
+            or obj:IsA("Fire") or obj:IsA("Smoke") or obj:IsA("Sparkles") then
+            ultraOriginals.particles[obj] = obj.Enabled
+            pcall(function() obj.Enabled = false end)
+        end
+    end
+    -- also nuke Lighting decorations
+    for _, fx in pairs(Lighting_svc:GetDescendants()) do
+        if fx:IsA("Atmosphere") or fx:IsA("Sky") then
+            pcall(function() fx.Parent = nil end)
+            table.insert(ultraOriginals.decals, { obj = fx, parent = Lighting_svc })
+        end
+    end
+end
+
+local function removeUltra()
+    for obj, data in pairs(ultraOriginals.parts) do
+        if obj and obj.Parent then
+            pcall(function()
+                obj.Material   = data.mat
+                obj.CastShadow = data.shadow
+            end)
+        end
+    end
+    for _, data in pairs(ultraOriginals.decals) do
+        if data.obj then
+            pcall(function() data.obj.Parent = data.parent end)
+        end
+    end
+    for obj, wasEnabled in pairs(ultraOriginals.particles) do
+        if obj and obj.Parent then
+            pcall(function() obj.Enabled = wasEnabled end)
+        end
+    end
+    ultraOriginals.parts     = {}
+    ultraOriginals.decals    = {}
+    ultraOriginals.particles = {}
+end
+
+local mperf = mcol:section({name = "Performance", toggle = false})
+
+mperf:toggle({
+    name    = "FPS Boost",
+    flag    = "perf_fps",
+    tooltip = "Disables shadows, fog, post-effects and forces min quality",
+    callback = function(s)
+        fpsActive = s
+        if s then applyFPS() else removeFPS() end
+    end
+})
+
+mperf:toggle({
+    name    = "ULTRA FPS Boost",
+    flag    = "perf_ultra",
+    tooltip = "Removes all textures, decals, particles, atmosphere. Brutal but fast.",
+    callback = function(s)
+        ultraActive = s
+        if s then applyUltra() else removeUltra() end
+    end
+})
+
 -- ── Aiming tab ────────────────────────────
 local column = Aiming:column()
 local selec, lock, triggerbot = column:multi_section({names = {"Selection", "Lock", "Triggerbot"}})
@@ -1327,599 +1444,39 @@ Aiming.open_tab()
 Aim.Load()
 
 -- ───────────────────────────────────────────
---  DUMMIES VS NOOBS TAB
+--  GAME SCANNER
 -- ───────────────────────────────────────────
-local TweenService_NPC = game:GetService("TweenService")
+do
+    local BASE = "https://raw.githubusercontent.com/louislusted-collab/scripts/refs/heads/main/games/"
+    local CACHE_BUST = "?v=" .. tostring(tick())
 
-local NPC_SET = {
-    Infantry=true,  Cloaker=true,    Shielder=true,  Saboteur=true,
-    Grenadier=true, Jetpacker=true,  Gunner=true,    Sniper=true,
-    Engineer=true,  Sentry=true,     Teleporter=true,
-    Ranger=true,    APU=true,        Tank=true,       Platform=true,
-    Tranquilizer=true, Medic=true,   Administrator=true,
-    Informant=true, Confidant=true,  Agitator=true,  Agreement=true,
-    Jagant=true,    Bombardier=true, Combatant=true, Dreadnought=true,
-    Daedalus=true,  Tempest=true,    Fusilier=true,  Lelantos=true,
-    Gaia=true,      Hermes=true,     Prometheus=true,
-    Achilles=true,  Trident=true,    Sparta=true,
-    Ares=true,      Mastermind=true, Chassis=true,
-}
-
-local BOSS_SET = {
-    Daedalus=true, Tempest=true, Fusilier=true, Lelantos=true,
-    Gaia=true,     Hermes=true,  Prometheus=true,
-    Achilles=true, Trident=true, Sparta=true,
-    Ares=true,     Mastermind=true, Chassis=true,
-}
-
-local CAT_COLOR = {
-    Infantry=Color3.fromRGB(100,220,100),   Cloaker=Color3.fromRGB(100,220,100),
-    Shielder=Color3.fromRGB(100,220,100),   Saboteur=Color3.fromRGB(100,220,100),
-    Grenadier=Color3.fromRGB(255,220,0),    Jetpacker=Color3.fromRGB(255,220,0),
-    Gunner=Color3.fromRGB(255,220,0),       Sniper=Color3.fromRGB(255,220,0),
-    Engineer=Color3.fromRGB(0,200,255),     Sentry=Color3.fromRGB(0,200,255),
-    Teleporter=Color3.fromRGB(0,200,255),
-    Ranger=Color3.fromRGB(255,140,0),       APU=Color3.fromRGB(255,140,0),
-    Tank=Color3.fromRGB(255,140,0),         Platform=Color3.fromRGB(255,140,0),
-    Tranquilizer=Color3.fromRGB(180,0,255), Medic=Color3.fromRGB(180,0,255),
-    Administrator=Color3.fromRGB(180,0,255),
-    Informant=Color3.fromRGB(255,100,200),  Confidant=Color3.fromRGB(255,100,200),
-    Agitator=Color3.fromRGB(255,100,200),   Agreement=Color3.fromRGB(255,100,200),
-    Jagant=Color3.fromRGB(255,100,200),     Bombardier=Color3.fromRGB(255,100,200),
-    Combatant=Color3.fromRGB(255,100,200),  Dreadnought=Color3.fromRGB(255,100,200),
-    Daedalus=Color3.fromRGB(255,50,50),     Tempest=Color3.fromRGB(255,50,50),
-    Fusilier=Color3.fromRGB(255,50,50),     Lelantos=Color3.fromRGB(255,50,50),
-    Gaia=Color3.fromRGB(255,50,50),         Hermes=Color3.fromRGB(255,50,50),
-    Prometheus=Color3.fromRGB(255,50,50),   Achilles=Color3.fromRGB(255,50,50),
-    Trident=Color3.fromRGB(255,50,50),      Sparta=Color3.fromRGB(255,50,50),
-    Ares=Color3.fromRGB(255,0,0),           Mastermind=Color3.fromRGB(255,0,0),
-    Chassis=Color3.fromRGB(255,0,0),
-}
-
-local NpcEsp = {
-    Enabled=false, BoxEnabled=false, NamesEnabled=false,
-    HealthEnabled=false, DistEnabled=false, ChamsEnabled=false,
-    CategoryColors=true, DefaultColor=Color3.fromRGB(255,80,80),
-    FillTr=0.5, OutTr=0.1,
-}
-
-local NpcAim = {
-    Enabled=false, Toggle=false, BossPriority=true,
-    LockPart="HumanoidRootPart", LockMode=1,
-    FovRadius=150, Sensitivity=0, Sensitivity2=3.5,
-    TriggerKey=Enum.UserInputType.MouseButton2,
-}
-
--- ── Cached NPC list ───────────────────────
-local cachedNpcs      = {}
-local npcCacheAddConn = nil
-local npcCacheRemConn = nil
-
-local function BuildNpcCache()
-    cachedNpcs = {}
-    for _, desc in ipairs(Space:GetDescendants()) do
-        if desc:IsA("Model") and NPC_SET[desc.Name] then
-            cachedNpcs[desc] = true
-        end
-    end
-end
-
-local function StartNpcCache()
-    BuildNpcCache()
-    if not npcCacheAddConn then
-        npcCacheAddConn = Space.DescendantAdded:Connect(function(desc)
-            if desc:IsA("Model") and NPC_SET[desc.Name] then
-                cachedNpcs[desc] = true
-                if NpcEsp.ChamsEnabled then
-                    task.wait(0.8)
-                    ApplyNpcChams(desc)
-                end
-            end
-        end)
-    end
-    if not npcCacheRemConn then
-        npcCacheRemConn = Space.DescendantRemoving:Connect(function(desc)
-            if cachedNpcs[desc] then
-                cachedNpcs[desc] = nil
-                if activeNpcBoxes[desc] then DestroyNpcBox(desc) end
-            end
-        end)
-    end
-end
-
--- ── Helpers ───────────────────────────────
-local function NpcColor(model)
-    if NpcEsp.CategoryColors then return CAT_COLOR[model.Name] or NpcEsp.DefaultColor end
-    return NpcEsp.DefaultColor
-end
-
-local function GetNpcRoot(model)
-    return model:FindFirstChild("HumanoidRootPart")
-        or model:FindFirstChild("Torso")
-        or model.PrimaryPart
-end
-
--- ── Chams ─────────────────────────────────
-local NPC_CHAMS_TAG = "JefferyDvNChams"
-
-local function ApplyNpcChams(model)
-    if not model or not model.Parent then return end
-    if not NpcEsp.ChamsEnabled then return end
-    if model:FindFirstChild(NPC_CHAMS_TAG) then return end
-    local col = NpcColor(model)
-    local h = Instance.new("Highlight")
-    h.Name=NPC_CHAMS_TAG; h.FillColor=col; h.OutlineColor=col
-    h.FillTransparency=NpcEsp.FillTr; h.OutlineTransparency=NpcEsp.OutTr
-    h.DepthMode=Enum.HighlightDepthMode.AlwaysOnTop
-    h.Adornee=model; h.Parent=model
-end
-
-local function RemoveNpcChams(model)
-    local h = model and model:FindFirstChild(NPC_CHAMS_TAG)
-    if h then h:Destroy() end
-end
-
-local function RefreshNpcChams()
-    for model in pairs(cachedNpcs) do
-        RemoveNpcChams(model)
-        if NpcEsp.ChamsEnabled then ApplyNpcChams(model) end
-    end
-end
-
-local function EnableNpcChams()
-    for model in pairs(cachedNpcs) do ApplyNpcChams(model) end
-end
-
-local function DisableNpcChams()
-    for model in pairs(cachedNpcs) do RemoveNpcChams(model) end
-end
-
--- ── ESP ───────────────────────────────────
-local activeNpcBoxes = {}
-local npcEspConn     = nil
-
-local function MkLine(col)
-    local l=Drawing.new("Line"); l.Visible=false
-    l.Color=col or Color3.new(1,1,1); l.Thickness=1; l.Transparency=1
-    return l
-end
-local function MkText()
-    local t=Drawing.new("Text"); t.Visible=false; t.Size=13; t.Center=true
-    t.Outline=true; t.OutlineColor=Color3.new(0,0,0)
-    t.Color=Color3.new(1,1,1); t.Font=Drawing.Fonts.UI; t.Transparency=1
-    return t
-end
-
-local function GetOrMakeNpcBox(model)
-    if activeNpcBoxes[model] then return activeNpcBoxes[model] end
-    local c = NpcColor(model)
-    local lines = {
-        TL1=MkLine(c),TL2=MkLine(c),TR1=MkLine(c),TR2=MkLine(c),
-        BL1=MkLine(c),BL2=MkLine(c),BR1=MkLine(c),BR2=MkLine(c),
+    -- Fill in PlaceIds for each game.
+    -- To find a PlaceId: in-game run  print(game.PlaceId)
+    local GAME_FILES = {
+        [3260590327] = "tds",   -- Tower Defense Simulator
+        [142823291]  = "mm2",   -- Murder Mystery 2
+        [7836550498] = "dvn",   -- Dummies vs Noobs
+        [189707]     = "nds",   -- Natural Disaster Survival
+        [97598239454123] = "gag",  -- Grow a Garden 2
     }
-    local hpOut=MkLine(Color3.new(0,0,0)); hpOut.Thickness=5
-    local hpBg=MkLine(Color3.fromRGB(30,30,30)); hpBg.Thickness=3
-    local hpBar=MkLine(Color3.fromRGB(0,255,0)); hpBar.Thickness=3
-    local ori=Instance.new("Part")
-    ori.Anchored=true; ori.CanCollide=false; ori.CastShadow=false
-    ori.Transparency=1; ori.Size=Vector3.new(4,6,0.1)
-    ori.CFrame=CFrame.new(0,-9999,0); ori.Parent=Space
-    local data={lines=lines,hpOut=hpOut,hpBg=hpBg,hpBar=hpBar,
-                nameText=MkText(),distText=MkText(),ori=ori}
-    activeNpcBoxes[model]=data
-    return data
-end
 
-local function HideNpcBox(d)
-    if not d then return end
-    for _,l in pairs(d.lines) do l.Visible=false end
-    d.hpOut.Visible=false; d.hpBg.Visible=false; d.hpBar.Visible=false
-    d.nameText.Visible=false; d.distText.Visible=false
-end
-
-function DestroyNpcBox(model)
-    local d=activeNpcBoxes[model]
-    if not d then return end
-    for _,l in pairs(d.lines) do pcall(function() l:Remove() end) end
-    pcall(function() d.hpOut:Remove() end); pcall(function() d.hpBg:Remove() end)
-    pcall(function() d.hpBar:Remove() end); pcall(function() d.nameText:Remove() end)
-    pcall(function() d.distText:Remove() end); pcall(function() d.ori:Destroy() end)
-    activeNpcBoxes[model]=nil
-end
-
-local function EnableNpcEsp()
-    if npcEspConn then return end
-    StartNpcCache()
-    npcEspConn = RunSvc.RenderStepped:Connect(function()
-        if not NpcEsp.Enabled then
-            for _,d in pairs(activeNpcBoxes) do HideNpcBox(d) end
-            return
-        end
-        local myHRP  = Player.Character and Player.Character:FindFirstChild("HumanoidRootPart")
-        local camPos = Camera.CFrame.p
-        for model in pairs(cachedNpcs) do
-            local hrp = GetNpcRoot(model)
-            local hum = model:FindFirstChildOfClass("Humanoid")
-            -- FIX: destroy box + remove chams + evict from cache on death
-            if not hrp or not hum or hum.Health <= 0 then
-                if activeNpcBoxes[model] then DestroyNpcBox(model) end
-                RemoveNpcChams(model)
-                cachedNpcs[model] = nil
-                continue
+    local file = GAME_FILES[game.PlaceId]
+    if file then
+        local ok, chunk = pcall(loadstring, game:HttpGet(BASE .. file .. ".lua" .. CACHE_BUST))
+        if ok and type(chunk) == "function" then
+            local ok2, mod = pcall(chunk)
+            if ok2 and type(mod) == "function" then
+                pcall(mod, window, library)
+            else
+                warn("[Atlanta] Game module error (" .. file .. "): " .. tostring(mod))
             end
-            local _, vis = Camera:WorldToViewportPoint(hrp.Position)
-            local d = GetOrMakeNpcBox(model)
-            if not vis then HideNpcBox(d); continue end
-            local col     = NpcColor(model)
-            local camDist = (camPos - hrp.Position).Magnitude
-            local studs   = myHRP and math.floor((myHRP.Position - hrp.Position).Magnitude) or 0
-            local hpRatio = math.clamp(hum.Health / math.max(hum.MaxHealth,1), 0, 1)
-            d.ori.CFrame = CFrame.new(hrp.CFrame.Position, camPos)
-            local SX,SY = 2, 3
-            local TL=Camera:WorldToViewportPoint((d.ori.CFrame*CFrame.new( SX, SY,0)).p)
-            local TR=Camera:WorldToViewportPoint((d.ori.CFrame*CFrame.new(-SX, SY,0)).p)
-            local BL=Camera:WorldToViewportPoint((d.ori.CFrame*CFrame.new( SX,-SY,0)).p)
-            local BR=Camera:WorldToViewportPoint((d.ori.CFrame*CFrame.new(-SX,-SY,0)).p)
-            if NpcEsp.BoxEnabled then
-                local off=math.clamp(1/camDist*750,2,300)
-                local th=math.clamp(1/camDist*100,1,4)
-                for _,ln in pairs(d.lines) do ln.Color=col; ln.Thickness=th end
-                d.lines.TL1.From=Vector2.new(TL.X,TL.Y); d.lines.TL1.To=Vector2.new(TL.X+off,TL.Y)
-                d.lines.TL2.From=Vector2.new(TL.X,TL.Y); d.lines.TL2.To=Vector2.new(TL.X,TL.Y+off)
-                d.lines.TR1.From=Vector2.new(TR.X,TR.Y); d.lines.TR1.To=Vector2.new(TR.X-off,TR.Y)
-                d.lines.TR2.From=Vector2.new(TR.X,TR.Y); d.lines.TR2.To=Vector2.new(TR.X,TR.Y+off)
-                d.lines.BL1.From=Vector2.new(BL.X,BL.Y); d.lines.BL1.To=Vector2.new(BL.X+off,BL.Y)
-                d.lines.BL2.From=Vector2.new(BL.X,BL.Y); d.lines.BL2.To=Vector2.new(BL.X,BL.Y-off)
-                d.lines.BR1.From=Vector2.new(BR.X,BR.Y); d.lines.BR1.To=Vector2.new(BR.X-off,BR.Y)
-                d.lines.BR2.From=Vector2.new(BR.X,BR.Y); d.lines.BR2.To=Vector2.new(BR.X,BR.Y-off)
-                for _,ln in pairs(d.lines) do ln.Visible=true end
-            else for _,ln in pairs(d.lines) do ln.Visible=false end end
-            if NpcEsp.HealthEnabled then
-                local barGap=math.clamp(1/camDist*60,2,6)
-                local barX=math.min(TL.X,BL.X)-barGap
-                local barTop=math.min(TL.Y,TR.Y); local barBot=math.max(BL.Y,BR.Y)
-                local bt=math.clamp(1/camDist*80,2,5)
-                local fillTop=barBot-((barBot-barTop)*hpRatio)
-                local hpCol=LerpColor(Color3.fromRGB(255,0,0),Color3.fromRGB(0,255,0),hpRatio)
-                d.hpOut.From=Vector2.new(barX,barTop); d.hpOut.To=Vector2.new(barX,barBot); d.hpOut.Thickness=bt+2; d.hpOut.Visible=true
-                d.hpBg.From=Vector2.new(barX,barTop);  d.hpBg.To=Vector2.new(barX,barBot);  d.hpBg.Thickness=bt;   d.hpBg.Visible=true
-                d.hpBar.From=Vector2.new(barX,fillTop); d.hpBar.To=Vector2.new(barX,barBot); d.hpBar.Color=hpCol; d.hpBar.Thickness=bt; d.hpBar.Visible=hpRatio>0
-            else d.hpOut.Visible=false; d.hpBg.Visible=false; d.hpBar.Visible=false end
-            local cx=(BL.X+BR.X)/2; local botY=math.max(BL.Y,BR.Y)
-            local fs=math.clamp(13-(studs/500)*7,6,13)
-            local gap=math.clamp(1/camDist*120,2,10)
-            if NpcEsp.NamesEnabled then
-                d.nameText.Text=model.Name; d.nameText.Color=col; d.nameText.Size=fs
-                d.nameText.Position=Vector2.new(cx,math.min(TL.Y,TR.Y)-fs-gap); d.nameText.Visible=true
-            else d.nameText.Visible=false end
-            if NpcEsp.DistEnabled then
-                d.distText.Text=studs.." studs"; d.distText.Color=Color3.new(1,1,1); d.distText.Size=fs
-                d.distText.Position=Vector2.new(cx,botY+gap); d.distText.Visible=true
-            else d.distText.Visible=false end
-        end
-    end)
-end
-
-local function DisableNpcEsp()
-    if npcEspConn then npcEspConn:Disconnect(); npcEspConn=nil end
-    for model,d in pairs(activeNpcBoxes) do HideNpcBox(d); DestroyNpcBox(model) end
-end
-
--- ── NPC Aimbot ────────────────────────────
-local npcAimbotRunning=false; local npcAimbotLocked=nil
-local npcAimbotConn=nil; local npcAimIBConn=nil; local npcAimIEConn=nil
-local npcAimTyping=false
-
-local npcFovCircle  = Drawing.new("Circle")
-local npcFovOutline = Drawing.new("Circle")
-for _,c in pairs({npcFovCircle,npcFovOutline}) do
-    c.Visible=false; c.NumSides=60; c.Filled=false; c.Transparency=1
-end
-
-UIS.TextBoxFocused:Connect(function()       npcAimTyping=true  end)
-UIS.TextBoxFocusReleased:Connect(function() npcAimTyping=false end)
-
-local function GetBestNpc()
-    local mouse=UIS:GetMouseLocation()
-    local best,bestDist,bestTier=nil,NpcAim.FovRadius,math.huge
-    for model in pairs(cachedNpcs) do
-        local hrp=model:FindFirstChild(NpcAim.LockPart) or GetNpcRoot(model)
-        local hum=model:FindFirstChildOfClass("Humanoid")
-        if not hrp or not hum or hum.Health<=0 then continue end
-        local sp,onScreen=Camera:WorldToViewportPoint(hrp.Position)
-        if not onScreen then continue end
-        local dist=(mouse-Vector2.new(sp.X,sp.Y)).Magnitude
-        local tier=(NpcAim.BossPriority and BOSS_SET[model.Name]) and 1 or 2
-        if tier<bestTier or (tier==bestTier and dist<bestDist) then
-            bestTier=tier; bestDist=dist; best=model
-        end
-    end
-    return best
-end
-
-local function EnableNpcAimbot()
-    if npcAimbotConn then return end
-    StartNpcCache()
-    npcAimbotConn = RunSvc.RenderStepped:Connect(function()
-        if NpcAim.Enabled then
-            local mp=UIS:GetMouseLocation()
-            npcFovOutline.Visible=true; npcFovOutline.Position=mp
-            npcFovOutline.Radius=NpcAim.FovRadius; npcFovOutline.Thickness=2; npcFovOutline.Color=Color3.new(0,0,0)
-            npcFovCircle.Visible=true; npcFovCircle.Position=mp
-            npcFovCircle.Radius=NpcAim.FovRadius; npcFovCircle.Thickness=1
-            npcFovCircle.Color=npcAimbotLocked and Color3.fromRGB(255,100,100) or Color3.new(1,1,1)
         else
-            npcFovCircle.Visible=false; npcFovOutline.Visible=false
-        end
-        if not npcAimbotRunning or not NpcAim.Enabled then return end
-        if npcAimbotLocked then
-            if not npcAimbotLocked.Parent or not cachedNpcs[npcAimbotLocked] then
-                npcAimbotLocked=nil
-            else
-                local hum=npcAimbotLocked:FindFirstChildOfClass("Humanoid")
-                if not hum or hum.Health<=0 then npcAimbotLocked=nil end
-            end
-        end
-        if not npcAimbotLocked then npcAimbotLocked=GetBestNpc() end
-        if not npcAimbotLocked then return end
-        local hrp=npcAimbotLocked:FindFirstChild(NpcAim.LockPart) or GetNpcRoot(npcAimbotLocked)
-        if not hrp then npcAimbotLocked=nil; return end
-        if NpcAim.LockMode==2 then
-            local sp=Camera:WorldToViewportPoint(hrp.Position)
-            local mp=UIS:GetMouseLocation()
-            mousemoverel((sp.X-mp.X)/NpcAim.Sensitivity2,(sp.Y-mp.Y)/NpcAim.Sensitivity2)
-        else
-            if NpcAim.Sensitivity>0 then
-                TweenService_NPC:Create(Camera,
-                    TweenInfo.new(NpcAim.Sensitivity,Enum.EasingStyle.Sine,Enum.EasingDirection.Out),
-                    {CFrame=CFrame.new(Camera.CFrame.Position,hrp.Position)}
-                ):Play()
-            else
-                Camera.CFrame=CFrame.new(Camera.CFrame.Position,hrp.Position)
-            end
-        end
-    end)
-    npcAimIBConn=UIS.InputBegan:Connect(function(input,gpe)
-        if gpe or npcAimTyping then return end
-        if input.UserInputType==NpcAim.TriggerKey then
-            if NpcAim.Toggle then
-                npcAimbotRunning=not npcAimbotRunning
-                if not npcAimbotRunning then npcAimbotLocked=nil end
-            else npcAimbotRunning=true end
-        end
-    end)
-    npcAimIEConn=UIS.InputEnded:Connect(function(input)
-        if NpcAim.Toggle or npcAimTyping then return end
-        if input.UserInputType==NpcAim.TriggerKey then
-            npcAimbotRunning=false; npcAimbotLocked=nil
-        end
-    end)
-end
-
-local function DisableNpcAimbot()
-    npcAimbotRunning=false; npcAimbotLocked=nil
-    npcFovCircle.Visible=false; npcFovOutline.Visible=false
-    if npcAimbotConn then npcAimbotConn:Disconnect(); npcAimbotConn=nil end
-    if npcAimIBConn  then npcAimIBConn:Disconnect();  npcAimIBConn=nil  end
-    if npcAimIEConn  then npcAimIEConn:Disconnect();  npcAimIEConn=nil  end
-end
-
--- ── DvN UI ────────────────────────────────
-local DvN   = window:tab({name="DvN"})
-local dvcol = DvN:column()
-local npcESPsec, npcAIMsec = dvcol:multi_section({names={"NPC ESP","NPC Aimbot"}})
-
-npcESPsec:toggle({name="Enabled",flag="dvn_esp_enabled",callback=function(s)
-    NpcEsp.Enabled=s; if s then EnableNpcEsp() else DisableNpcEsp() end
-end})
-npcESPsec:toggle({name="Boxes",    flag="dvn_esp_boxes", callback=function(s) NpcEsp.BoxEnabled   =s end})
-npcESPsec:toggle({name="Names",    flag="dvn_esp_names", callback=function(s) NpcEsp.NamesEnabled =s end})
-npcESPsec:toggle({name="Healthbar",flag="dvn_esp_hp",    callback=function(s) NpcEsp.HealthEnabled=s end})
-npcESPsec:toggle({name="Distance", flag="dvn_esp_dist",  callback=function(s) NpcEsp.DistEnabled  =s end})
-npcESPsec:toggle({name="Category Colors",flag="dvn_esp_catcolors",tooltip="Each enemy type gets a unique color",callback=function(s)
-    NpcEsp.CategoryColors=s; if NpcEsp.ChamsEnabled then RefreshNpcChams() end
-end})
-local npcChamsT=npcESPsec:toggle({name="Chams",flag="dvn_chams_enabled",tooltip="Highlight NPCs through walls",callback=function(s)
-    NpcEsp.ChamsEnabled=s; if s then EnableNpcChams() else DisableNpcChams() end
-end})
-npcChamsT:colorpicker({name="Default Color",flag="dvn_chams_defcol",color=hex("#FF5050"),callback=function(c)
-    NpcEsp.DefaultColor=c; if NpcEsp.ChamsEnabled then RefreshNpcChams() end
-end})
-npcESPsec:slider({name="Chams Fill Transparency",flag="dvn_chams_filltr",min=0,max=1,default=0.5,interval=0.01,callback=function(v)
-    NpcEsp.FillTr=v; if NpcEsp.ChamsEnabled then RefreshNpcChams() end
-end})
-npcESPsec:slider({name="Chams Outline Transparency",flag="dvn_chams_outtr",min=0,max=1,default=0.1,interval=0.01,callback=function(v)
-    NpcEsp.OutTr=v; if NpcEsp.ChamsEnabled then RefreshNpcChams() end
-end})
-
-npcAIMsec:toggle({name="Enabled",flag="dvn_aim_enabled",callback=function(s)
-    NpcAim.Enabled=s; if s then EnableNpcAimbot() else DisableNpcAimbot() end
-end}):keybind({name="Aimbot Key",flag="dvn_aim_key",callback=function(k) if k then NpcAim.TriggerKey=k end end})
-npcAIMsec:toggle({name="Toggle Mode",  flag="dvn_aim_toggle",   callback=function(s) NpcAim.Toggle      =s end})
-npcAIMsec:toggle({name="Boss Priority",flag="dvn_aim_bossprio", tooltip="Target bosses before regular Noobs",callback=function(s) NpcAim.BossPriority=s end})
-npcAIMsec:dropdown({name="Lock Part",flag="dvn_aim_lockpart",items={"HumanoidRootPart","Head","UpperTorso"},default="HumanoidRootPart",callback=function(v) NpcAim.LockPart=v end})
-npcAIMsec:dropdown({name="Lock Mode",flag="dvn_aim_lockmode",items={"CFrame","mousemoverel"},default="CFrame",callback=function(v) NpcAim.LockMode=v=="CFrame" and 1 or 2 end})
-npcAIMsec:slider({name="FOV Radius",       flag="dvn_aim_fov",   min=10, max=1000,default=150,interval=1,   callback=function(v) NpcAim.FovRadius   =v end})
-npcAIMsec:slider({name="Sensitivity",      flag="dvn_aim_sens",  min=0,  max=1,   default=0,  interval=0.01,callback=function(v) NpcAim.Sensitivity =v end})
-npcAIMsec:slider({name="Mouse Sensitivity",flag="dvn_aim_sens2", min=0.1,max=5,   default=3.5,interval=0.1, callback=function(v) NpcAim.Sensitivity2=v end})
-
--- ───────────────────────────────────────────
---  TDS TAB
--- ───────────────────────────────────────────
-local TDS    = window:tab({name = "TDS"})
-local tdscol = TDS:column()
-local tdssec = tdscol:section({name = "Scripts", toggle = false})
-
-tdssec:button_holder({})
-tdssec:button({name="Main Hub",callback=function()
-    local ok, err = pcall(function()
-        loadstring(game:HttpGet("https://raw.githubusercontent.com/DuxiiT/auto-strat/refs/heads/main/Library.lua"))()
-    end)
-    if not ok then warn("[Main Hub] Failed to load: " .. tostring(err)) end
-end})
-
--- ───────────────────────────────────────────
---  MM2 TAB
--- ───────────────────────────────────────────
-local MM2 = window:tab({name = "MM2"})
-local mm2col = MM2:column()
-local mm2trade, mm2roles, mm2esp, mm2misc = mm2col:multi_section({names = {"Trading", "Roles", "ESP", "Misc"}})
-
--- ── MM2 ESP billboards ────────────────────
-local MM2ESPFolder = Instance.new("Folder")
-MM2ESPFolder.Name  = "MM2ESP"
-MM2ESPFolder.Parent = game.CoreGui
-
-local mm2Esp = { All = false, Murder = false, Sheriff = false }
-
-local function MM2AddBillboard(plr)
-    local bb = Instance.new("BillboardGui")
-    bb.Name          = plr.Name .. "MM2BB"
-    bb.AlwaysOnTop   = true
-    bb.Size          = UDim2.new(0, 200, 0, 50)
-    bb.ExtentsOffset = Vector3.new(0, 3, 0)
-    bb.Enabled       = false
-    bb.Parent        = MM2ESPFolder
-
-    local lbl = Instance.new("TextLabel")
-    lbl.TextSize             = 20
-    lbl.Text                 = plr.Name
-    lbl.Font                 = Enum.Font.FredokaOne
-    lbl.BackgroundTransparency = 1
-    lbl.Size                 = UDim2.new(1, 0, 1, 0)
-    lbl.TextStrokeTransparency = 0
-    lbl.TextStrokeColor3     = Color3.new(0, 0, 0)
-    lbl.Parent               = bb
-
-    repeat
-        task.wait()
-        pcall(function()
-            local c  = plr.Character
-            local bp = plr:FindFirstChild("Backpack")
-            if c then bb.Adornee = c:FindFirstChild("Head") end
-            local hasKnife = (c and c:FindFirstChild("Knife")) or (bp and bp:FindFirstChild("Knife"))
-            local hasGun   = (c and c:FindFirstChild("Gun"))   or (bp and bp:FindFirstChild("Gun"))
-            if hasKnife then
-                lbl.TextColor3 = Color3.fromRGB(255, 0, 0)
-                bb.Enabled     = mm2Esp.Murder
-            elseif hasGun then
-                lbl.TextColor3 = Color3.fromRGB(0, 100, 255)
-                bb.Enabled     = mm2Esp.Sheriff
-            else
-                lbl.TextColor3 = Color3.fromRGB(0, 255, 0)
-                bb.Enabled     = mm2Esp.All
-            end
-        end)
-    until not plr.Parent
-end
-
-for _, plr in pairs(Players:GetPlayers()) do
-    if plr ~= Player then coroutine.wrap(MM2AddBillboard)(plr) end
-end
-Players.PlayerAdded:Connect(function(plr)
-    if plr ~= Player then coroutine.wrap(MM2AddBillboard)(plr) end
-end)
-Players.PlayerRemoving:Connect(function(plr)
-    local bb = MM2ESPFolder:FindFirstChild(plr.Name .. "MM2BB")
-    if bb then bb:Destroy() end
-end)
-
--- ── Trading ───────────────────────────────
-local mm2TargetName = ""
-
-mm2trade:textbox({
-    placeholder = "Enter player name...",
-    flag        = "mm2_player_name",
-    callback    = function(v) mm2TargetName = v end,
-})
-
-mm2trade:button_holder({})
-mm2trade:button({name = "Force Trade", callback = function()
-    if mm2TargetName == "" then return end
-    local target = Players:FindFirstChild(mm2TargetName)
-    if not target then return end
-    pcall(function()
-        local RS = game:GetService("ReplicatedStorage")
-        RS:WaitForChild("Trade"):WaitForChild("SendRequest"):InvokeServer(target)
-        RS:WaitForChild("Trade"):WaitForChild("AcceptRequest"):FireServer()
-    end)
-end})
-
--- ── Roles ─────────────────────────────────
-mm2roles:button_holder({})
-mm2roles:button({name = "Chat Expose Roles", callback = function()
-    local RS = game:GetService("ReplicatedStorage")
-    local evt = RS:WaitForChild("DefaultChatSystemChatEvents"):WaitForChild("SayMessageRequest")
-    for _, plr in pairs(Players:GetPlayers()) do
-        local bp = plr:FindFirstChild("Backpack")
-        if bp then
-            if bp:FindFirstChild("Knife") then
-                pcall(function() evt:FireServer(plr.Name .. ": Has The Knife", "normalchat") end)
-            end
-            if bp:FindFirstChild("Gun") then
-                pcall(function() evt:FireServer(plr.Name .. ": Has The Gun", "normalchat") end)
-            end
+            warn("[Atlanta] Game tab failed to load (" .. file .. "): " .. tostring(chunk))
         end
     end
-end})
+end
 
-local mm2GunLbl  = mm2roles:label({name = "Gun: Not Dropped"})
-local mm2MurdLbl = mm2roles:label({name = "Murderer: Unknown"})
-local mm2SherLbl = mm2roles:label({name = "Sheriff:  Unknown"})
 
-task.spawn(function()
-    while task.wait(1) do
-        pcall(function()
-            mm2GunLbl.set(workspace:FindFirstChild("GunDrop") and "Gun: Dropped" or "Gun: Not Dropped")
-        end)
-        local murd, sher = "Unknown", "Unknown"
-        for _, plr in ipairs(Players:GetPlayers()) do
-            local c  = plr.Character
-            local bp = plr:FindFirstChild("Backpack")
-            if c and bp then
-                if c:FindFirstChild("Knife") or bp:FindFirstChild("Knife") then murd = plr.Name end
-                if c:FindFirstChild("Gun")   or bp:FindFirstChild("Gun")   then sher = plr.Name end
-            end
-        end
-        pcall(function() mm2MurdLbl.set("Murderer: " .. murd) end)
-        pcall(function() mm2SherLbl.set("Sheriff:  " .. sher) end)
-    end
-end)
-
--- ── ESP ───────────────────────────────────
-mm2esp:toggle({name = "All Players ESP",  flag = "mm2_all_esp",    callback = function(s) mm2Esp.All    = s end})
-mm2esp:toggle({name = "Murder ESP",       flag = "mm2_murder_esp", callback = function(s) mm2Esp.Murder = s end})
-mm2esp:toggle({name = "Sheriff ESP",      flag = "mm2_sheriff_esp",callback = function(s) mm2Esp.Sheriff= s end})
-
--- ── Misc ──────────────────────────────────
-mm2misc:button_holder({})
-mm2misc:button({name = "Get Every Emote", callback = function()
-    pcall(function()
-        local Emotes = Player.PlayerGui:WaitForChild("MainGUI"):WaitForChild("Game"):FindFirstChild("Emotes")
-        if Emotes then
-            require(game:GetService("ReplicatedStorage").Modules.EmoteModule).GeneratePage(
-                {"headless","zombie","zen","ninja","floss","dab","sit"}, Emotes, "Free Emotes"
-            )
-        end
-    end)
-end})
-
-mm2misc:button_holder({})
-mm2misc:button({name = "Get Every Weapon (Client)", callback = function()
-    pcall(function()
-        local DataBase   = getrenv()._G.Database
-        local PlayerData = getrenv()._G.PlayerData
-        local newOwned   = {}
-        for i in next, DataBase.Item do newOwned[i] = 999999999 end
-        local weapons = PlayerData.Weapons
-        game:GetService("RunService"):BindToRenderStep("MM2WeaponUpdate", 0, function()
-            weapons.Owned = newOwned
-        end)
-        Player.Character.Humanoid.Health = 0
-    end)
-end})
-
--- ───────────────────────────────────────────
 library:config_list_update()
 
 for index, value in themes.preset do
