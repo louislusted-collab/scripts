@@ -104,22 +104,17 @@ return function(window, library)
     end
 
     -- ── Bag full check ────────────────────────
-    -- GAG2 uses a weight-based bag; scan PlayerGui for a weight/capacity label
+    -- GAG2 bag is 100/100 fruits
     local function isBagFull()
         for _, obj in pairs(Player.PlayerGui:GetDescendants()) do
             if obj:IsA("TextLabel") then
                 local t = obj.Text
-                -- patterns: "54.26K / 60K", "18/20", "Full", etc.
-                local cur, max = t:match("([%d%.]+[Kk]?)%s*/+%s*([%d%.]+[Kk]?)")
+                local cur, max = t:match("(%d+)%s*/%s*(%d+)")
                 if cur and max then
-                    local function toNum(s)
-                        s = s:gsub("[Kk]", "")
-                        return tonumber(s) or 0
-                    end
-                    local c, m = toNum(cur), toNum(max)
-                    if m > 0 and c >= m * 0.97 then return true end
+                    local c, m = tonumber(cur), tonumber(max)
+                    if m and m > 0 and c >= m then return true end
                 end
-                if t:lower():find("full") or t:lower():find("bag full") then
+                if t:lower():find("bag full") or t:lower():find("inventory full") then
                     return true
                 end
             end
