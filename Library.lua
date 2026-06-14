@@ -1254,7 +1254,7 @@
 
 				library:tween(blur, {Size = bool and (flags["Blur Size"] or 15) or 0})
 
-				if _set_rope_vis then _set_rope_vis(bool) end
+				if _set_rope_vis then _set_rope_vis(bool and (flags["rope_enabled"] ~= false)) end
 
 				dock_outline.Visible = bool;
 
