@@ -40,21 +40,37 @@ return function(window, library)
         end
     end
 
-    -- click a ScreenGui button by its absolute screen position
+    -- fire a GUI button using every available method
     local function clickBtn(btn)
+        -- best: fire connections directly (executor getconnections API)
+        local fired = false
         pcall(function()
-            local pos = btn.AbsolutePosition + btn.AbsoluteSize * 0.5
-            VIM:SendMouseButtonEvent(pos.X, pos.Y, 0, true,  game, 1)
-            task.wait(0.05)
-            VIM:SendMouseButtonEvent(pos.X, pos.Y, 0, false, game, 1)
+            for _, sig in pairs({btn.MouseButton1Click, btn.Activated}) do
+                for _, c in pairs(getconnections(sig)) do
+                    pcall(function() c:Fire() end)
+                    fired = true
+                end
+            end
         end)
+        -- fallback: VirtualInputManager at screen position
+        if not fired then
+            pcall(function()
+                local pos = btn.AbsolutePosition + btn.AbsoluteSize * 0.5
+                VIM:SendMouseButtonEvent(pos.X, pos.Y, 0, true,  game, 1)
+                task.wait(0.05)
+                VIM:SendMouseButtonEvent(pos.X, pos.Y, 0, false, game, 1)
+            end)
+        end
     end
 
-    -- find a visible ScreenGui button whose Text or Name contains any keyword
+    -- find a visible ScreenGui button whose Text, Name, or child labels contain any keyword
     local function findGuiButton(keywords)
         for _, obj in pairs(Player.PlayerGui:GetDescendants()) do
             if obj.Visible and (obj:IsA("TextButton") or obj:IsA("ImageButton")) then
-                local label = ((obj:IsA("TextButton") and obj.Text) or "") .. obj.Name
+                local label = ((obj:IsA("TextButton") and obj.Text) or "") .. " " .. obj.Name
+                for _, child in pairs(obj:GetChildren()) do
+                    if child:IsA("TextLabel") then label = label .. " " .. child.Text end
+                end
                 local lower = label:lower()
                 for _, kw in ipairs(keywords) do
                     if lower:find(kw, 1, true) then return obj end
