@@ -1488,7 +1488,7 @@ do
     -- Fill in PlaceIds for each game.
     -- To find a PlaceId: in-game run  print(game.PlaceId)
     local GAME_FILES = {
-        [3260590327] = "tds",   -- Tower Defense Simulator
+        [5591597781] = "tds",   -- Tower Defense Simulator
         [142823291]  = "mm2",   -- Murder Mystery 2
         [7836550498] = "dvn",   -- Dummies vs Noobs
         [189707]     = "nds",   -- Natural Disaster Survival
